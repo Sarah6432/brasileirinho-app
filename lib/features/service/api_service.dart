@@ -4,8 +4,7 @@ import 'package:http/http.dart' as http;
 class ApiService {
   static const String _baseUrl = 'https://api.papacapim.just.pro.br';
 
-  /// Cria um novo usuário na API Papacapim.
-  /// Retorna o JSON de resposta em caso de sucesso, ou lança uma exceção com a mensagem de erro.
+ 
   static Future<Map<String, dynamic>> createUser({
     required String login,
     required String name,
@@ -36,8 +35,6 @@ class ApiService {
     }
   }
 
-  /// Faz login (cria uma sessão) na API Papacapim.
-  /// Retorna o JSON de resposta contendo o token de sessão.
   static Future<Map<String, dynamic>> login({
     required String login,
     required String password,
