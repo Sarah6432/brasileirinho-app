@@ -1,3 +1,4 @@
+import 'package:brasileirinho/features/service/api_service.dart';
 import 'package:flutter/material.dart';
 
 class SignUpView extends StatefulWidget {
@@ -8,23 +9,80 @@ class SignUpView extends StatefulWidget {
 }
 
 class _SignUpViewState extends State<SignUpView> {
+  final loginController = TextEditingController();
   final nameController = TextEditingController();
-  final emailController = TextEditingController();
-  final birthDateController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
 
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
+    loginController.dispose();
     nameController.dispose();
-    emailController.dispose();
-    birthDateController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _signUp() async {
+    final login = loginController.text.trim();
+    final name = nameController.text.trim();
+    final password = passwordController.text;
+    final confirmPassword = confirmPasswordController.text;
+
+    if (login.isEmpty ||
+        name.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      _showSnackBar('Preencha todos os campos.');
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showSnackBar('As senhas não coincidem.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await ApiService.createUser(
+        login: login,
+        name: name,
+        password: password,
+        passwordConfirmation: confirmPassword,
+      );
+
+      if (!mounted) return;
+
+      _showSnackBar('Conta criada com sucesso! Faça login.', isError: false);
+
+      // Volta para a tela de login após um pequeno delay
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) Navigator.pop(context);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar(
+        'Erro ao criar conta: ${e.toString().replaceFirst('Exception: ', '')}',
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showSnackBar(String message, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
@@ -38,10 +96,7 @@ class _SignUpViewState extends State<SignUpView> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Image.asset(
-                  'assets/logo.png',
-                  height: 120,
-                ),
+                Image.asset('assets/logo.png', height: 120),
                 const SizedBox(height: 15),
                 const Text(
                   'Criar sua conta',
@@ -53,55 +108,25 @@ class _SignUpViewState extends State<SignUpView> {
                 ),
                 const SizedBox(height: 35),
                 TextField(
+                  controller: loginController,
+                  decoration: InputDecoration(
+                    hintText: 'Login (nome de usuário)',
+                    prefixIcon: const Icon(Icons.alternate_email),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF0072BC)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                TextField(
                   controller: nameController,
                   decoration: InputDecoration(
                     hintText: 'Nome completo',
                     prefixIcon: const Icon(Icons.person_outline),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF0072BC)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 15),
-                TextField(
-                  controller: emailController,
-                  decoration: InputDecoration(
-                    hintText: 'E-mail',
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF0072BC)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 15),
-                TextField(
-                  controller: birthDateController,
-                  readOnly: true,
-                  onTap: () async {
-                    DateTime? pickedDate = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime(1900),
-                      lastDate: DateTime.now(),
-                    );
-                    if (pickedDate != null) {
-                      setState(() {
-                        birthDateController.text =
-                            "${pickedDate.day.toString().padLeft(2, '0')}/${pickedDate.month.toString().padLeft(2, '0')}/${pickedDate.year}";
-                      });
-                    }
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Data de nascimento',
-                    prefixIcon: const Icon(Icons.calendar_today_outlined),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -156,7 +181,8 @@ class _SignUpViewState extends State<SignUpView> {
                       ),
                       onPressed: () {
                         setState(() {
-                          _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                          _isConfirmPasswordVisible =
+                              !_isConfirmPasswordVisible;
                         });
                       },
                     ),
@@ -176,16 +202,13 @@ class _SignUpViewState extends State<SignUpView> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(30),
                     gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF8DC63F),
-                        Color(0xFF0072BC),
-                      ],
+                      colors: [Color(0xFF8DC63F), Color(0xFF0072BC)],
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                     ),
                   ),
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: _isLoading ? null : _signUp,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
@@ -193,14 +216,23 @@ class _SignUpViewState extends State<SignUpView> {
                         borderRadius: BorderRadius.circular(30),
                       ),
                     ),
-                    child: const Text(
-                      'Criar conta',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : const Text(
+                            'Criar conta',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 40),

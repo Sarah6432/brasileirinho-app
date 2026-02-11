@@ -1,3 +1,4 @@
+import 'package:brasileirinho/features/service/api_service.dart';
 import 'package:brasileirinho/features/view/cadastro_view.dart';
 import 'package:flutter/material.dart';
 
@@ -9,15 +10,59 @@ class LoginView extends StatefulWidget {
 }
 
 class _LoginViewState extends State<LoginView> {
-  final emailController = TextEditingController();
+  final loginController = TextEditingController();
   final passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
-    emailController.dispose();
+    loginController.dispose();
     passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _login() async {
+    final login = loginController.text.trim();
+    final password = passwordController.text;
+
+    if (login.isEmpty || password.isEmpty) {
+      _showSnackBar('Preencha todos os campos.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final session = await ApiService.login(login: login, password: password);
+
+      if (!mounted) return;
+
+      final token = session['token'] as String;
+
+      _showSnackBar('Login realizado com sucesso!', isError: false);
+
+      // TODO: Navegar para a tela principal passando o token
+      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HomeView(token: token)));
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar(
+        'Erro ao fazer login: ${e.toString().replaceFirst('Exception: ', '')}',
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showSnackBar(String message, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
@@ -31,10 +76,7 @@ class _LoginViewState extends State<LoginView> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Image.asset(
-                  'assets/logo.png',
-                  height: 120,
-                ),
+                Image.asset('assets/logo.png', height: 120),
                 const SizedBox(height: 40),
                 const Text(
                   'Entrar no Brasileirinho',
@@ -46,9 +88,9 @@ class _LoginViewState extends State<LoginView> {
                 ),
                 const SizedBox(height: 35),
                 TextField(
-                  controller: emailController,
+                  controller: loginController,
                   decoration: InputDecoration(
-                    hintText: 'Telefone, email ou nome de usuário',
+                    hintText: 'Login',
                     prefixIcon: const Icon(Icons.person_outline),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -105,16 +147,13 @@ class _LoginViewState extends State<LoginView> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(30),
                     gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF8DC63F),
-                        Color(0xFF0072BC),
-                      ],
+                      colors: [Color(0xFF8DC63F), Color(0xFF0072BC)],
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                     ),
                   ),
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: _isLoading ? null : _login,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
@@ -122,14 +161,23 @@ class _LoginViewState extends State<LoginView> {
                         borderRadius: BorderRadius.circular(30),
                       ),
                     ),
-                    child: const Text(
-                      'Avançar',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : const Text(
+                            'Avançar',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 40),
