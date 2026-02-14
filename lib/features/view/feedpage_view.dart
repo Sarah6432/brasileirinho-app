@@ -1,6 +1,8 @@
 import 'package:brasileirinho/features/service/api_service.dart';
 import 'package:brasileirinho/features/view/createpostpage_view.dart';
-import 'package:flutter/material.dart'; 
+import 'package:brasileirinho/features/view/login_view.dart';
+import 'package:brasileirinho/features/view/profile_view.dart';
+import 'package:flutter/material.dart';
 
 class PostData {
   final String userName;
@@ -22,23 +24,48 @@ class PostData {
 
 class FeedPage extends StatefulWidget {
   final String token;
-  const FeedPage({super.key, required this.token});
+  final String userLogin;
+  const FeedPage({super.key, required this.token, required this.userLogin});
 
   @override
   State<FeedPage> createState() => _FeedPageState();
 }
 
-class _FeedPageState extends State<FeedPage> with SingleTickerProviderStateMixin {
+class _FeedPageState extends State<FeedPage>
+    with SingleTickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late TabController _tabController;
   List<PostData> _posts = [];
   bool _isLoading = true;
 
+  String _userName = '';
+  String _userLogin = '';
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _userLogin = widget.userLogin;
+    _loadUserData();
     _loadPosts();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final userData = await ApiService.getUser(widget.token, widget.userLogin);
+      if (mounted) {
+        setState(() {
+          _userName = userData['name'] ?? '';
+          _userLogin = userData['login'] ?? widget.userLogin;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _userName = widget.userLogin;
+        });
+      }
+    }
   }
 
   Future<void> _loadPosts() async {
@@ -48,9 +75,9 @@ class _FeedPageState extends State<FeedPage> with SingleTickerProviderStateMixin
       setState(() {
         _posts = data.map((item) {
           return PostData(
-            userName: item['user']['name'] ?? 'Usuário',
-            userHandle: "@${item['user']['login'] ?? 'anonimo'}",
-            time: "agora", 
+            userName: item['user']?['name'] ?? 'Usuário',
+            userHandle: "@${item['user']?['login'] ?? 'anonimo'}",
+            time: "agora",
             content: item['message'] ?? '',
             likes: 0,
           );
@@ -60,14 +87,36 @@ class _FeedPageState extends State<FeedPage> with SingleTickerProviderStateMixin
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro ao carregar posts: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Erro ao carregar posts: $e")));
       }
     }
   }
 
+  Future<void> _logout() async {
+    try {
+      await ApiService.deleteSession(widget.token);
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginView()),
+      (route) => false,
+    );
+  }
+
+  String _getInitial() {
+    if (_userName.isNotEmpty) return _userName[0].toUpperCase();
+    if (_userLogin.isNotEmpty) return _userLogin[0].toUpperCase();
+    return '?';
+  }
+
   Widget _buildProfileDrawer() {
+    final initial = _getInitial();
+
     return Drawer(
       backgroundColor: Colors.white,
       child: Column(
@@ -81,25 +130,37 @@ class _FeedPageState extends State<FeedPage> with SingleTickerProviderStateMixin
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const CircleAvatar(
+                      CircleAvatar(
                         radius: 25,
-                        backgroundColor: Colors.blueGrey,
-                        child: Text('S', style: TextStyle(color: Colors.white, fontSize: 20)),
+                        backgroundColor: const Color(0xFF0072BC),
+                        child: Text(
+                          initial,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                          ),
+                        ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.more_vert, color: Colors.black54),
+                        icon: const Icon(
+                          Icons.more_vert,
+                          color: Colors.black54,
+                        ),
                         onPressed: () {},
                       ),
                     ],
                   ),
                   const SizedBox(height: 15),
-                  const Text(
-                    "Sarah Silva Lima",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  Text(
+                    _userName.isNotEmpty ? _userName : _userLogin,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                   ),
-                  const Text(
-                    "@SarahSLima",
-                    style: TextStyle(color: Colors.grey, fontSize: 14),
+                  Text(
+                    "@$_userLogin",
+                    style: const TextStyle(color: Colors.grey, fontSize: 14),
                   ),
                   const SizedBox(height: 15),
                   const Row(
@@ -119,20 +180,49 @@ class _FeedPageState extends State<FeedPage> with SingleTickerProviderStateMixin
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                _buildDrawerItem(Icons.person_outline, "Perfil"),
+                ListTile(
+                  leading: const Icon(
+                    Icons.person_outline,
+                    color: Colors.black,
+                    size: 26,
+                  ),
+                  title: const Text(
+                    "Perfil",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context); // fecha o drawer
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProfileView(
+                          token: widget.token,
+                          userLogin: _userLogin,
+                          isCurrentUser: true,
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 _buildDrawerItem(Icons.people_outline, "Comunidades"),
                 _buildDrawerItem(Icons.bookmark_border, "Itens salvos"),
-                 const Divider(),
-                   ExpansionTile(
-                    title: const Text("Configurações & suporte", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                    children: [
-                     ListTile(
-                     leading: const Icon(Icons.logout, color: Colors.red),
-                     title: const Text("Sair", style: TextStyle(color: Colors.red)),
-                    onTap: () => Navigator.pushReplacementNamed(context, '/login'),
-              ),
-            ],
-          ),
+                const Divider(),
+                ExpansionTile(
+                  title: const Text(
+                    "Configurações & suporte",
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.red),
+                      title: const Text(
+                        "Sair",
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      onTap: _logout,
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -144,13 +234,18 @@ class _FeedPageState extends State<FeedPage> with SingleTickerProviderStateMixin
   Widget _buildDrawerItem(IconData icon, String title) {
     return ListTile(
       leading: Icon(icon, color: Colors.black, size: 26),
-      title: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+      ),
       onTap: () {},
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final initial = _getInitial();
+
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.white,
@@ -160,11 +255,14 @@ class _FeedPageState extends State<FeedPage> with SingleTickerProviderStateMixin
         elevation: 0.5,
         leading: GestureDetector(
           onTap: () => _scaffoldKey.currentState?.openDrawer(),
-          child: const Padding(
-            padding: EdgeInsets.all(10.0),
+          child: Padding(
+            padding: const EdgeInsets.all(10.0),
             child: CircleAvatar(
-              backgroundColor: Colors.blueGrey,
-              child: Text('S', style: TextStyle(color: Colors.white, fontSize: 12)),
+              backgroundColor: const Color(0xFF0072BC),
+              child: Text(
+                initial,
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+              ),
             ),
           ),
         ),
@@ -182,7 +280,10 @@ class _FeedPageState extends State<FeedPage> with SingleTickerProviderStateMixin
           unselectedLabelColor: Colors.grey,
           indicatorColor: const Color(0xFF5FB60E),
           indicatorSize: TabBarIndicatorSize.label,
-          tabs: const [Tab(text: "Para você"), Tab(text: "Seguindo")],
+          tabs: const [
+            Tab(text: "Para você"),
+            Tab(text: "Seguindo"),
+          ],
         ),
       ),
       body: TabBarView(
@@ -190,20 +291,22 @@ class _FeedPageState extends State<FeedPage> with SingleTickerProviderStateMixin
         children: [
           RefreshIndicator(
             onRefresh: _loadPosts,
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator())
-              : _buildTimeline(),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _buildTimeline(),
           ),
-          const Center(child: Text("Sua timeline de seguidores")), 
+          const Center(child: Text("Sua timeline de seguidores")),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final refresh = await Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => CreatePostPage(token: widget.token)),
+            MaterialPageRoute(
+              builder: (context) => CreatePostPage(token: widget.token),
+            ),
           );
-          if (refresh == true) _loadPosts(); 
+          if (refresh == true) _loadPosts();
         },
         backgroundColor: const Color(0xFF5FB60E),
         child: const Icon(Icons.add, color: Colors.white),
@@ -213,7 +316,12 @@ class _FeedPageState extends State<FeedPage> with SingleTickerProviderStateMixin
 
   Widget _buildTimeline() {
     if (_posts.isEmpty) {
-      return ListView(children: const [SizedBox(height: 100), Center(child: Text("Nenhum post encontrado."))]);
+      return ListView(
+        children: const [
+          SizedBox(height: 100),
+          Center(child: Text("Nenhum post encontrado.")),
+        ],
+      );
     }
     return ListView.builder(
       itemCount: _posts.length,
@@ -285,7 +393,10 @@ class _PostWidgetState extends State<PostWidget> {
               children: [
                 Row(
                   children: [
-                    Text(widget.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(
+                      widget.userName,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     const SizedBox(width: 5),
                     Expanded(
                       child: Text(
@@ -304,7 +415,8 @@ class _PostWidgetState extends State<PostWidget> {
                     borderRadius: BorderRadius.circular(15),
                     child: Image.network(
                       widget.imageUrl!,
-                      errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                      errorBuilder: (context, error, stackTrace) =>
+                          const SizedBox.shrink(),
                     ),
                   ),
                 ],

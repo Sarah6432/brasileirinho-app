@@ -40,13 +40,14 @@ class _LoginViewState extends State<LoginView> {
       if (!mounted) return;
 
       final token = session['token'] as String;
+      final userLogin = session['user_login'] as String;
 
       _showSnackBar('Login realizado com sucesso!', isError: false);
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => FeedPage(token: token),
+          builder: (_) => FeedPage(token: token, userLogin: userLogin),
         ),
       );
     } catch (e) {
