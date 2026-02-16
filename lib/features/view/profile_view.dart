@@ -23,6 +23,8 @@ class _ProfileViewState extends State<ProfileView> {
   List<dynamic> _posts = [];
   List<dynamic> _followers = [];
   bool _isLoading = true;
+  bool _isFollowing = false;
+  // ignore: unused_field
   String? _error;
 
   @override
@@ -32,6 +34,7 @@ class _ProfileViewState extends State<ProfileView> {
   }
 
   Future<void> _loadAll() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _error = null;
@@ -45,10 +48,16 @@ class _ProfileViewState extends State<ProfileView> {
       ]);
 
       if (mounted) {
+        final userData = results[0] as Map<String, dynamic>;
+        final followersList = results[2] as List<dynamic>;
+        
+        final following = followersList.any((f) => f['login'] == widget.userLogin);
+
         setState(() {
-          _userData = results[0] as Map<String, dynamic>;
+          _userData = userData;
           _posts = results[1] as List<dynamic>;
-          _followers = results[2] as List<dynamic>;
+          _followers = followersList;
+          _isFollowing = following;
           _isLoading = false;
         });
       }
@@ -62,6 +71,68 @@ class _ProfileViewState extends State<ProfileView> {
     }
   }
 
+  Future<void> _toggleFollow() async {
+    final oldStatus = _isFollowing;
+    setState(() => _isFollowing = !_isFollowing);
+
+    try {
+      if (oldStatus) {
+        await ApiService.unfollowUser(widget.token, widget.userLogin);
+      } else {
+        await ApiService.followUser(widget.token, widget.userLogin);
+      }
+      _loadAll();
+    } catch (e) {
+      setState(() => _isFollowing = oldStatus);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erro ao processar: $e")),
+        );
+      }
+    }
+  }
+
+  Future<void> _deletePost(int postId) async {
+    try {
+      await ApiService.deletePost(widget.token, postId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Post excluído com sucesso")),
+        );
+        _loadAll();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erro ao excluir: $e")),
+        );
+      }
+    }
+  }
+
+  void _showDeleteDialog(int postId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Excluir post"),
+        content: const Text("Deseja apagar esta postagem permanentemente?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancelar"),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deletePost(postId);
+            },
+            child: const Text("Excluir", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _getInitial() {
     final name = _userData?['name'] ?? widget.userLogin;
     return name.isNotEmpty ? name[0].toUpperCase() : '?';
@@ -71,21 +142,7 @@ class _ProfileViewState extends State<ProfileView> {
     if (dateStr == null) return '';
     try {
       final date = DateTime.parse(dateStr);
-      final months = [
-        '',
-        'jan',
-        'fev',
-        'mar',
-        'abr',
-        'mai',
-        'jun',
-        'jul',
-        'ago',
-        'set',
-        'out',
-        'nov',
-        'dez',
-      ];
+      final months = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
       return 'Entrou em ${months[date.month]} de ${date.year}';
     } catch (_) {
       return '';
@@ -108,11 +165,7 @@ class _ProfileViewState extends State<ProfileView> {
           children: [
             Text(
               _userData?['name'] ?? widget.userLogin,
-              style: const TextStyle(
-                color: Colors.black,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
             ),
             Text(
               '${_posts.length} posts',
@@ -123,30 +176,6 @@ class _ProfileViewState extends State<ProfileView> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Erro ao carregar perfil',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _error!,
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _loadAll,
-                    child: const Text('Tentar novamente'),
-                  ),
-                ],
-              ),
-            )
           : RefreshIndicator(
               onRefresh: _loadAll,
               child: _buildProfileContent(),
@@ -189,53 +218,53 @@ class _ProfileViewState extends State<ProfileView> {
                         child: CircleAvatar(
                           radius: 38,
                           backgroundColor: const Color(0xFF0072BC),
-                          child: Text(
-                            _getInitial(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 30,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child: Text(_getInitial(), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ),
                     const Spacer(),
-                    if (widget.isCurrentUser)
-                      Transform.translate(
-                        offset: const Offset(0, -10),
-                        child: OutlinedButton(
-                          onPressed: () async {
-                            final updated = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => EditProfileView(
-                                  token: widget.token,
-                                  currentName: name,
-                                  currentLogin: login,
-                                ),
+                    Transform.translate(
+                      offset: const Offset(0, -10),
+                      child: widget.isCurrentUser
+                          ? OutlinedButton(
+                              onPressed: () async {
+                                final updated = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => EditProfileView(
+                                      token: widget.token,
+                                      currentName: name,
+                                      currentLogin: login,
+                                    ),
+                                  ),
+                                );
+                                if (updated == true) _loadAll();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.black,
+                                side: const BorderSide(color: Colors.grey),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                               ),
-                            );
-                            if (updated == true) _loadAll();
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.black,
-                            side: const BorderSide(color: Colors.grey),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                              child: const Text('Editar perfil', style: TextStyle(fontWeight: FontWeight.bold)),
+                            )
+                          : ElevatedButton(
+                              onPressed: _toggleFollow,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isFollowing ? Colors.white : Colors.black,
+                                foregroundColor: _isFollowing ? Colors.black : Colors.white,
+                                side: _isFollowing ? const BorderSide(color: Colors.grey) : BorderSide.none,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              ),
+                              child: Text(
+                                _isFollowing ? 'Seguindo' : 'Seguir',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                          ),
-                          child: const Text(
-                            'Editar perfil',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
+                    ),
                   ],
                 ),
               ),
-              // Info
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Transform.translate(
@@ -243,60 +272,25 @@ class _ProfileViewState extends State<ProfileView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '@$login',
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 15,
-                        ),
-                      ),
+                      Text(name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                      Text('@$login', style: const TextStyle(color: Colors.grey, fontSize: 15)),
                       if (createdAt != null) ...[
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            const Icon(
-                              Icons.calendar_today,
-                              size: 16,
-                              color: Colors.grey,
-                            ),
+                            const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
                             const SizedBox(width: 5),
-                            Text(
-                              _formatDate(createdAt),
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 14,
-                              ),
-                            ),
+                            Text(_formatDate(createdAt), style: const TextStyle(color: Colors.grey, fontSize: 14)),
                           ],
                         ),
                       ],
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          const Text(
-                            '0 ',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const Text(
-                            'Seguindo  ',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                          Text(
-                            '${_followers.length} ',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const Text(
-                            'Seguidores',
-                            style: TextStyle(color: Colors.grey),
-                          ),
+                          const Text('0 ', style: TextStyle(fontWeight: FontWeight.bold)),
+                          const Text('Seguindo  ', style: TextStyle(color: Colors.grey)),
+                          Text('${_followers.length} ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          const Text('Seguidores', style: TextStyle(color: Colors.grey)),
                         ],
                       ),
                     ],
@@ -307,56 +301,97 @@ class _ProfileViewState extends State<ProfileView> {
             ],
           ),
         ),
-
-        // ── Posts do usuário ──
         if (_posts.isEmpty)
           const SliverFillRemaining(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.article_outlined, size: 48, color: Colors.grey),
-                  SizedBox(height: 12),
-                  Text(
-                    'Nenhum post ainda.',
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
-                  ),
-                ],
-              ),
-            ),
+            child: Center(child: Text('Nenhum post ainda.', style: TextStyle(color: Colors.grey))),
           )
         else
           SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
               final post = _posts[index];
-              return Column(
-                children: [
-                  _buildPostItem(post),
-                  const Divider(height: 1, thickness: 0.2),
-                ],
+              return ProfilePostItem(
+                key: ValueKey("profile_post_${post['id']}"),
+                post: post,
+                token: widget.token,
+                isCurrentUser: widget.isCurrentUser,
+                onDelete: () => _showDeleteDialog(post['id']),
               );
             }, childCount: _posts.length),
           ),
       ],
     );
   }
+}
 
-  Widget _buildPostItem(Map<String, dynamic> post) {
-    final userName = post['user']?['name'] ?? _userData?['name'] ?? '';
-    final userHandle = post['user']?['login'] ?? _userData?['login'] ?? '';
+class ProfilePostItem extends StatefulWidget {
+  final Map<String, dynamic> post;
+  final String token;
+  final bool isCurrentUser;
+  final VoidCallback onDelete;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10),
+  const ProfilePostItem({
+    super.key,
+    required this.post,
+    required this.token,
+    required this.isCurrentUser,
+    required this.onDelete,
+  });
+
+  @override
+  State<ProfilePostItem> createState() => _ProfilePostItemState();
+}
+
+class _ProfilePostItemState extends State<ProfilePostItem> {
+  late bool isLiked;
+  late int likesCount;
+
+  @override
+  void initState() {
+    super.initState();
+    isLiked = widget.post['liked_by_me'] ?? false;
+    likesCount = widget.post['likes_count'] ?? 0;
+  }
+
+  Future<void> _handleLike() async {
+    final oldLiked = isLiked;
+    final oldCounts = likesCount;
+
+    setState(() {
+      isLiked = !isLiked;
+      isLiked ? likesCount++ : likesCount--;
+    });
+
+    try {
+      if (isLiked) {
+        await ApiService.likePost(widget.token, widget.post['id']);
+      } else {
+        await ApiService.unlikePost(widget.token, widget.post['id']);
+      }
+    } catch (e) {
+      if (mounted && !e.toString().contains("422")) {
+        setState(() {
+          isLiked = oldLiked;
+          likesCount = oldCounts;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final userName = widget.post['user']?['name'] ?? 'Usuário';
+    final userHandle = widget.post['user']?['login'] ?? 'anonimo';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE)))),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 20,
             backgroundColor: const Color(0xFF0072BC),
-            child: Text(
-              userName.isNotEmpty ? userName[0].toUpperCase() : '?',
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-            ),
+            child: Text(userName.isNotEmpty ? userName[0].toUpperCase() : '?'),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -364,34 +399,51 @@ class _ProfileViewState extends State<ProfileView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      userName,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(width: 5),
                     Expanded(
-                      child: Text(
-                        '@$userHandle',
-                        style: const TextStyle(color: Colors.grey),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      child: Text("$userName @$userHandle", style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
+                    if (widget.isCurrentUser)
+                      PopupMenuButton<String>(
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.more_vert, color: Colors.grey, size: 18),
+                        onSelected: (value) {
+                          if (value == 'delete') widget.onDelete();
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                                SizedBox(width: 8),
+                                Text("Excluir", style: TextStyle(color: Colors.red)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  post['message'] ?? '',
-                  style: const TextStyle(fontSize: 15),
-                ),
+                Text(widget.post['message'] ?? ''),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _actionIcon(Icons.chat_bubble_outline, '0'),
-                    _actionIcon(Icons.repeat, '0'),
-                    _actionIcon(Icons.favorite_border, '0'),
-                    _actionIcon(Icons.share_outlined, ''),
+                    const Icon(Icons.chat_bubble_outline, size: 18, color: Colors.grey),
+                    const Icon(Icons.repeat, size: 18, color: Colors.grey),
+                    GestureDetector(
+                      onTap: _handleLike,
+                      child: Row(
+                        children: [
+                          Icon(isLiked ? Icons.favorite : Icons.favorite_border, size: 18, color: isLiked ? Colors.red : Colors.grey),
+                          const SizedBox(width: 4),
+                          Text(likesCount.toString(), style: TextStyle(color: isLiked ? Colors.red : Colors.grey, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.share_outlined, size: 18, color: Colors.grey),
                   ],
                 ),
               ],
@@ -399,16 +451,6 @@ class _ProfileViewState extends State<ProfileView> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _actionIcon(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: Colors.grey),
-        const SizedBox(width: 4),
-        Text(text, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-      ],
     );
   }
 }
