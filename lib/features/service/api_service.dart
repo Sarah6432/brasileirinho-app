@@ -131,7 +131,10 @@ class ApiService {
 
   // --- POSTAGENS ---
 
-  static Future<List<dynamic>> getPosts(String token, {bool feedOnly = false}) async {
+  static Future<List<dynamic>> getPosts(
+    String token, {
+    bool feedOnly = false,
+  }) async {
     final String query = feedOnly ? '?feed=1' : '';
     final url = Uri.parse('$_baseUrl/posts$query');
     final response = await http.get(url, headers: _authHeaders(token));
@@ -150,7 +153,9 @@ class ApiService {
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Erro ao buscar posts do usuário: ${response.statusCode}');
+      throw Exception(
+        'Erro ao buscar posts do usuário: ${response.statusCode}',
+      );
     }
   }
 
@@ -203,7 +208,7 @@ class ApiService {
       url,
       headers: _authHeaders(token),
       body: jsonEncode({
-        "reply": {"message": message}
+        "reply": {"message": message},
       }),
     );
 
@@ -217,6 +222,17 @@ class ApiService {
   }
 
   // --- CURTIDAS (LIKES) ---
+
+  static Future<List<dynamic>> getPostLikes(String token, int postId) async {
+    final url = Uri.parse('$_baseUrl/posts/$postId/likes');
+    final response = await http.get(url, headers: _authHeaders(token));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return [];
+    }
+  }
 
   static Future<void> likePost(String token, int postId) async {
     final url = Uri.parse('$_baseUrl/posts/$postId/likes');
@@ -254,6 +270,17 @@ class ApiService {
       return jsonDecode(response.body);
     } else {
       throw Exception('Erro ao buscar seguidores: ${response.statusCode}');
+    }
+  }
+
+  static Future<List<dynamic>> getFollowing(String token, String login) async {
+    final url = Uri.parse('$_baseUrl/users/$login/following');
+    final response = await http.get(url, headers: _authHeaders(token));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Erro ao buscar seguindo: ${response.statusCode}');
     }
   }
 

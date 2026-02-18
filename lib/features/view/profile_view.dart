@@ -1,16 +1,20 @@
 import 'package:brasileirinho/features/service/api_service.dart';
 import 'package:brasileirinho/features/view/edit_profile_view.dart';
+import 'package:brasileirinho/features/view/post_details_view.dart';
+import 'package:brasileirinho/features/view/feedpage_view.dart' show PostData;
 import 'package:flutter/material.dart';
 
 class ProfileView extends StatefulWidget {
   final String token;
   final String userLogin;
+  final String currentUserLogin;
   final bool isCurrentUser;
 
   const ProfileView({
     super.key,
     required this.token,
     required this.userLogin,
+    required this.currentUserLogin,
     this.isCurrentUser = false,
   });
 
@@ -22,6 +26,7 @@ class _ProfileViewState extends State<ProfileView> {
   Map<String, dynamic>? _userData;
   List<dynamic> _posts = [];
   List<dynamic> _followers = [];
+  List<dynamic> _following = [];
   bool _isLoading = true;
   bool _isFollowing = false;
   // ignore: unused_field
@@ -47,16 +52,52 @@ class _ProfileViewState extends State<ProfileView> {
         ApiService.getFollowers(widget.token, widget.userLogin),
       ]);
 
+      // Busca "seguindo" separadamente para não quebrar o perfil se falhar
+      List<dynamic> followingList = [];
+      try {
+        followingList = await ApiService.getFollowing(
+          widget.token,
+          widget.userLogin,
+        );
+      } catch (_) {
+        // API pode não suportar /following — mostra 0 em vez de quebrar tudo
+      }
+
       if (mounted) {
         final userData = results[0] as Map<String, dynamic>;
+        final allPosts = results[1] as List<dynamic>;
+        final userPosts = allPosts.where((p) => p['post_id'] == null).toList();
         final followersList = results[2] as List<dynamic>;
-        
-        final following = followersList.any((f) => f['login'] == widget.userLogin);
+
+        // Busca likes e replies de cada post
+        try {
+          final likesFutures = userPosts
+              .map((p) => ApiService.getPostLikes(widget.token, p['id']))
+              .toList();
+          final repliesFutures = userPosts
+              .map((p) => ApiService.getReplies(widget.token, p['id']))
+              .toList();
+          final likesResults = await Future.wait(likesFutures);
+          final repliesResults = await Future.wait(repliesFutures);
+          for (int i = 0; i < userPosts.length; i++) {
+            final likes = likesResults[i];
+            userPosts[i]['likes_count'] = likes.length;
+            userPosts[i]['liked_by_me'] = likes.any(
+              (like) => like['user_login'] == widget.userLogin,
+            );
+            userPosts[i]['replies_count'] = repliesResults[i].length;
+          }
+        } catch (_) {}
+
+        final following = followersList.any(
+          (f) => f['follower_login'] == widget.currentUserLogin,
+        );
 
         setState(() {
           _userData = userData;
-          _posts = results[1] as List<dynamic>;
+          _posts = userPosts;
           _followers = followersList;
+          _following = followingList;
           _isFollowing = following;
           _isLoading = false;
         });
@@ -85,9 +126,9 @@ class _ProfileViewState extends State<ProfileView> {
     } catch (e) {
       setState(() => _isFollowing = oldStatus);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro ao processar: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Erro ao processar: $e")));
       }
     }
   }
@@ -103,9 +144,9 @@ class _ProfileViewState extends State<ProfileView> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro ao excluir: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Erro ao excluir: $e")));
       }
     }
   }
@@ -142,7 +183,21 @@ class _ProfileViewState extends State<ProfileView> {
     if (dateStr == null) return '';
     try {
       final date = DateTime.parse(dateStr);
-      final months = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+      final months = [
+        '',
+        'jan',
+        'fev',
+        'mar',
+        'abr',
+        'mai',
+        'jun',
+        'jul',
+        'ago',
+        'set',
+        'out',
+        'nov',
+        'dez',
+      ];
       return 'Entrou em ${months[date.month]} de ${date.year}';
     } catch (_) {
       return '';
@@ -165,7 +220,11 @@ class _ProfileViewState extends State<ProfileView> {
           children: [
             Text(
               _userData?['name'] ?? widget.userLogin,
-              style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             Text(
               '${_posts.length} posts',
@@ -218,7 +277,14 @@ class _ProfileViewState extends State<ProfileView> {
                         child: CircleAvatar(
                           radius: 38,
                           backgroundColor: const Color(0xFF0072BC),
-                          child: Text(_getInitial(), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
+                          child: Text(
+                            _getInitial(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 30,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -243,22 +309,37 @@ class _ProfileViewState extends State<ProfileView> {
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.black,
                                 side: const BorderSide(color: Colors.grey),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
                               ),
-                              child: const Text('Editar perfil', style: TextStyle(fontWeight: FontWeight.bold)),
+                              child: const Text(
+                                'Editar perfil',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
                             )
                           : ElevatedButton(
                               onPressed: _toggleFollow,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: _isFollowing ? Colors.white : Colors.black,
-                                foregroundColor: _isFollowing ? Colors.black : Colors.white,
-                                side: _isFollowing ? const BorderSide(color: Colors.grey) : BorderSide.none,
+                                backgroundColor: _isFollowing
+                                    ? Colors.white
+                                    : Colors.black,
+                                foregroundColor: _isFollowing
+                                    ? Colors.black
+                                    : Colors.white,
+                                side: _isFollowing
+                                    ? const BorderSide(color: Colors.grey)
+                                    : BorderSide.none,
                                 elevation: 0,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
                               ),
                               child: Text(
                                 _isFollowing ? 'Seguindo' : 'Seguir',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                     ),
@@ -272,25 +353,59 @@ class _ProfileViewState extends State<ProfileView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                      Text('@$login', style: const TextStyle(color: Colors.grey, fontSize: 15)),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '@$login',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 15,
+                        ),
+                      ),
                       if (createdAt != null) ...[
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                            const Icon(
+                              Icons.calendar_today,
+                              size: 16,
+                              color: Colors.grey,
+                            ),
                             const SizedBox(width: 5),
-                            Text(_formatDate(createdAt), style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                            Text(
+                              _formatDate(createdAt),
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 14,
+                              ),
+                            ),
                           ],
                         ),
                       ],
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          const Text('0 ', style: TextStyle(fontWeight: FontWeight.bold)),
-                          const Text('Seguindo  ', style: TextStyle(color: Colors.grey)),
-                          Text('${_followers.length} ', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          const Text('Seguidores', style: TextStyle(color: Colors.grey)),
+                          Text(
+                            '${_following.length} ',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const Text(
+                            'Seguindo  ',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                          Text(
+                            '${_followers.length} ',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const Text(
+                            'Seguidores',
+                            style: TextStyle(color: Colors.grey),
+                          ),
                         ],
                       ),
                     ],
@@ -303,7 +418,12 @@ class _ProfileViewState extends State<ProfileView> {
         ),
         if (_posts.isEmpty)
           const SliverFillRemaining(
-            child: Center(child: Text('Nenhum post ainda.', style: TextStyle(color: Colors.grey))),
+            child: Center(
+              child: Text(
+                'Nenhum post ainda.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
           )
         else
           SliverList(
@@ -379,77 +499,147 @@ class _ProfilePostItemState extends State<ProfilePostItem> {
 
   @override
   Widget build(BuildContext context) {
-    final userName = widget.post['user']?['name'] ?? 'Usuário';
-    final userHandle = widget.post['user']?['login'] ?? 'anonimo';
+    final String userHandle =
+        widget.post['user_login'] ?? widget.post['user']?['login'] ?? 'anonimo';
+    final String userName = widget.post['user']?['name'] ?? userHandle;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE)))),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: const Color(0xFF0072BC),
-            child: Text(userName.isNotEmpty ? userName[0].toUpperCase() : '?'),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        final postData = PostData(
+          id: widget.post['id'] ?? 0,
+          userName: userName,
+          userHandle: userHandle,
+          content: widget.post['message'] ?? '',
+          time: '',
+          likes: likesCount,
+          isLiked: isLiked,
+        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                PostDetailsView(token: widget.token, post: postData),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text("$userName @$userHandle", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                    if (widget.isCurrentUser)
-                      PopupMenuButton<String>(
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.more_vert, color: Colors.grey, size: 18),
-                        onSelected: (value) {
-                          if (value == 'delete') widget.onDelete();
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                                SizedBox(width: 8),
-                                Text("Excluir", style: TextStyle(color: Colors.red)),
-                              ],
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE))),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: const Color(0xFF0072BC),
+              child: Text(
+                userName.isNotEmpty ? userName[0].toUpperCase() : '?',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "$userName @$userHandle",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      if (widget.isCurrentUser)
+                        PopupMenuButton<String>(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(
+                            Icons.more_vert,
+                            color: Colors.grey,
+                            size: 18,
+                          ),
+                          onSelected: (value) {
+                            if (value == 'delete') widget.onDelete();
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.red,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    "Excluir",
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  Text(widget.post['message'] ?? ''),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.chat_bubble_outline,
+                            size: 18,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            (widget.post['replies_count'] ?? 0).toString(),
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 12,
                             ),
                           ),
                         ],
                       ),
-                  ],
-                ),
-                Text(widget.post['message'] ?? ''),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Icon(Icons.chat_bubble_outline, size: 18, color: Colors.grey),
-                    const Icon(Icons.repeat, size: 18, color: Colors.grey),
-                    GestureDetector(
-                      onTap: _handleLike,
-                      child: Row(
-                        children: [
-                          Icon(isLiked ? Icons.favorite : Icons.favorite_border, size: 18, color: isLiked ? Colors.red : Colors.grey),
-                          const SizedBox(width: 4),
-                          Text(likesCount.toString(), style: TextStyle(color: isLiked ? Colors.red : Colors.grey, fontSize: 12)),
-                        ],
+                      const Icon(Icons.repeat, size: 18, color: Colors.grey),
+                      GestureDetector(
+                        onTap: _handleLike,
+                        child: Row(
+                          children: [
+                            Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              size: 18,
+                              color: isLiked ? Colors.red : Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              likesCount.toString(),
+                              style: TextStyle(
+                                color: isLiked ? Colors.red : Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const Icon(Icons.share_outlined, size: 18, color: Colors.grey),
-                  ],
-                ),
-              ],
+                      const Icon(
+                        Icons.share_outlined,
+                        size: 18,
+                        color: Colors.grey,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

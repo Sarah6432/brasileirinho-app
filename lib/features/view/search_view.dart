@@ -2,40 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:brasileirinho/features/service/api_service.dart';
 import 'package:brasileirinho/features/view/profile_view.dart';
 import 'package:brasileirinho/features/view/post_details_view.dart';
-// import 'package:brasileirinho/features/view/feed_view.dart'; // Import necessário para PostData
-
-// Definição mínima de PostData para evitar erro de importação
-class PostData {
-  final int id;
-  final String userName;
-  final String userHandle;
-  final String content;
-  final String time;
-  final int likes;
-  final bool isLiked;
-
-  PostData({
-    required this.id,
-    required this.userName,
-    required this.userHandle,
-    required this.content,
-    required this.time,
-    required this.likes,
-    required this.isLiked,
-  });
-}
+import 'package:brasileirinho/features/view/feedpage_view.dart';
 
 class SearchView extends StatefulWidget {
   final String token;
   final String currentUserLogin;
 
-  const SearchView({super.key, required this.token, required this.currentUserLogin});
+  const SearchView({
+    super.key,
+    required this.token,
+    required this.currentUserLogin,
+  });
 
   @override
   State<SearchView> createState() => _SearchViewState();
 }
 
-class _SearchViewState extends State<SearchView> with SingleTickerProviderStateMixin {
+class _SearchViewState extends State<SearchView>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   late TabController _tabController;
   List<dynamic> _userResults = [];
@@ -50,9 +34,9 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
 
   Future<void> _performSearch(String query) async {
     if (query.trim().isEmpty) return;
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
       // Realiza as buscas na API conforme a documentação
       final results = await Future.wait([
@@ -68,9 +52,9 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro na busca: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Erro na busca: $e")));
       }
     }
   }
@@ -103,27 +87,25 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
           ],
         ),
       ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : TabBarView(
-            controller: _tabController,
-            children: [
-              _buildUserResults(),
-              _buildPostResults(),
-            ],
-          ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : TabBarView(
+              controller: _tabController,
+              children: [_buildUserResults(), _buildPostResults()],
+            ),
     );
   }
 
   Widget _buildUserResults() {
-    if (_userResults.isEmpty) return const Center(child: Text("Nenhum usuário encontrado."));
+    if (_userResults.isEmpty)
+      return const Center(child: Text("Nenhum usuário encontrado."));
 
     return ListView.builder(
       itemCount: _userResults.length,
       itemBuilder: (context, index) {
         final user = _userResults[index];
         final String login = user['login'] ?? '';
-        
+
         return ListTile(
           leading: const CircleAvatar(
             backgroundColor: Color(0xFF0072BC),
@@ -138,6 +120,7 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                 builder: (_) => ProfileView(
                   token: widget.token,
                   userLogin: login,
+                  currentUserLogin: widget.currentUserLogin,
                   isCurrentUser: login == widget.currentUserLogin,
                 ),
               ),
@@ -149,13 +132,14 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
   }
 
   Widget _buildPostResults() {
-    if (_postResults.isEmpty) return const Center(child: Text("Nenhuma publicação encontrada."));
+    if (_postResults.isEmpty)
+      return const Center(child: Text("Nenhuma publicação encontrada."));
 
     return ListView.builder(
       itemCount: _postResults.length,
       itemBuilder: (context, index) {
         final item = _postResults[index];
-        
+
         // Mapeia o JSON para o objeto PostData usado na FeedPage
         final post = PostData(
           id: item['id'] ?? 0,
@@ -170,12 +154,17 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
         return ListTile(
           leading: const Icon(Icons.article_outlined, color: Colors.grey),
           title: Text("@${post.userHandle}"),
-          subtitle: Text(post.content, maxLines: 2, overflow: TextOverflow.ellipsis),
+          subtitle: Text(
+            post.content,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => PostDetailsView(token: widget.token, post: post),
+                builder: (_) =>
+                    PostDetailsView(token: widget.token, post: post),
               ),
             );
           },
