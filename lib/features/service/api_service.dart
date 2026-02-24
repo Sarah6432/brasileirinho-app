@@ -91,14 +91,12 @@ class ApiService {
     String? name,
     String? password,
     String? passwordConfirmation,
-    String? photo,
   }) async {
     final url = Uri.parse('$_baseUrl/users/1');
 
     final userData = <String, dynamic>{};
     if (login != null && login.isNotEmpty) userData['login'] = login;
     if (name != null && name.isNotEmpty) userData['name'] = name;
-    if (photo != null) userData['photo'] = photo;
     if (password != null && password.isNotEmpty) {
       userData['password'] = password;
       userData['password_confirmation'] = passwordConfirmation ?? password;
@@ -134,10 +132,18 @@ class ApiService {
   static Future<List<dynamic>> getPosts(
     String token, {
     bool feedOnly = false,
+    int? page,
+    String? search,
   }) async {
-    final String query = feedOnly ? '?feed=1' : '';
-    final url = Uri.parse('$_baseUrl/posts$query');
-    final response = await http.get(url, headers: _authHeaders(token));
+    final queryParams = <String, String>{};
+    if (feedOnly) queryParams['feed'] = '1';
+    if (page != null) queryParams['page'] = page.toString();
+    if (search != null && search.isNotEmpty) queryParams['search'] = search;
+
+    final uri = Uri.parse(
+      '$_baseUrl/posts',
+    ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+    final response = await http.get(uri, headers: _authHeaders(token));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -146,9 +152,18 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> getUserPosts(String token, String login) async {
-    final url = Uri.parse('$_baseUrl/users/$login/posts');
-    final response = await http.get(url, headers: _authHeaders(token));
+  static Future<List<dynamic>> getUserPosts(
+    String token,
+    String login, {
+    int? page,
+  }) async {
+    final queryParams = <String, String>{};
+    if (page != null) queryParams['page'] = page.toString();
+
+    final uri = Uri.parse(
+      '$_baseUrl/users/$login/posts',
+    ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+    final response = await http.get(uri, headers: _authHeaders(token));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -187,9 +202,18 @@ class ApiService {
 
   // --- RESPOSTAS (REPLIES) ---
 
-  static Future<List<dynamic>> getReplies(String token, int postId) async {
-    final url = Uri.parse('$_baseUrl/posts/$postId/replies');
-    final response = await http.get(url, headers: _authHeaders(token));
+  static Future<List<dynamic>> getReplies(
+    String token,
+    int postId, {
+    int? page,
+  }) async {
+    final queryParams = <String, String>{};
+    if (page != null) queryParams['page'] = page.toString();
+
+    final uri = Uri.parse(
+      '$_baseUrl/posts/$postId/replies',
+    ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+    final response = await http.get(uri, headers: _authHeaders(token));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -242,9 +266,7 @@ class ApiService {
       body: jsonEncode({}),
     );
 
-    if (response.statusCode != 200 &&
-        response.statusCode != 201 &&
-        response.statusCode != 422) {
+    if (response.statusCode != 201 && response.statusCode != 422) {
       throw Exception('Erro ao curtir post: ${response.statusCode}');
     }
   }
@@ -270,17 +292,6 @@ class ApiService {
       return jsonDecode(response.body);
     } else {
       throw Exception('Erro ao buscar seguidores: ${response.statusCode}');
-    }
-  }
-
-  static Future<List<dynamic>> getFollowing(String token, String login) async {
-    final url = Uri.parse('$_baseUrl/users/$login/following');
-    final response = await http.get(url, headers: _authHeaders(token));
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Erro ao buscar seguindo: ${response.statusCode}');
     }
   }
 
@@ -310,16 +321,34 @@ class ApiService {
 
   // --- BUSCA (Corrigido conforme Documentação) ---
 
-  static Future<List<dynamic>> searchUsers(String token, String query) async {
-    final url = Uri.parse('$_baseUrl/users?search=$query');
-    final response = await http.get(url, headers: _authHeaders(token));
+  static Future<List<dynamic>> searchUsers(
+    String token,
+    String query, {
+    int? page,
+  }) async {
+    final queryParams = <String, String>{'search': query};
+    if (page != null) queryParams['page'] = page.toString();
+
+    final uri = Uri.parse(
+      '$_baseUrl/users',
+    ).replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _authHeaders(token));
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Erro ao pesquisar usuários');
   }
 
-  static Future<List<dynamic>> searchPosts(String token, String query) async {
-    final url = Uri.parse('$_baseUrl/posts?search=$query');
-    final response = await http.get(url, headers: _authHeaders(token));
+  static Future<List<dynamic>> searchPosts(
+    String token,
+    String query, {
+    int? page,
+  }) async {
+    final queryParams = <String, String>{'search': query};
+    if (page != null) queryParams['page'] = page.toString();
+
+    final uri = Uri.parse(
+      '$_baseUrl/posts',
+    ).replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _authHeaders(token));
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Erro ao pesquisar posts');
   }

@@ -26,7 +26,6 @@ class _ProfileViewState extends State<ProfileView> {
   Map<String, dynamic>? _userData;
   List<dynamic> _posts = [];
   List<dynamic> _followers = [];
-  List<dynamic> _following = [];
   bool _isLoading = true;
   bool _isFollowing = false;
   // ignore: unused_field
@@ -51,17 +50,6 @@ class _ProfileViewState extends State<ProfileView> {
         ApiService.getUserPosts(widget.token, widget.userLogin),
         ApiService.getFollowers(widget.token, widget.userLogin),
       ]);
-
-      // Busca "seguindo" separadamente para não quebrar o perfil se falhar
-      List<dynamic> followingList = [];
-      try {
-        followingList = await ApiService.getFollowing(
-          widget.token,
-          widget.userLogin,
-        );
-      } catch (_) {
-        // API pode não suportar /following — mostra 0 em vez de quebrar tudo
-      }
 
       if (mounted) {
         final userData = results[0] as Map<String, dynamic>;
@@ -97,7 +85,6 @@ class _ProfileViewState extends State<ProfileView> {
           _userData = userData;
           _posts = userPosts;
           _followers = followersList;
-          _following = followingList;
           _isFollowing = following;
           _isLoading = false;
         });
@@ -390,14 +377,6 @@ class _ProfileViewState extends State<ProfileView> {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          Text(
-                            '${_following.length} ',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const Text(
-                            'Seguindo  ',
-                            style: TextStyle(color: Colors.grey),
-                          ),
                           Text(
                             '${_followers.length} ',
                             style: const TextStyle(fontWeight: FontWeight.bold),

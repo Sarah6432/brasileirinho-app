@@ -11,10 +11,8 @@ class PostData {
   final int id;
   final String userName;
   final String userHandle;
-  final String? userPhoto;
   final String time;
   final String content;
-  final String? imageUrl;
   int likes;
   bool isLiked;
   int replies;
@@ -23,10 +21,8 @@ class PostData {
     required this.id,
     required this.userName,
     required this.userHandle,
-    this.userPhoto,
     required this.time,
     required this.content,
-    this.imageUrl,
     required this.likes,
     this.isLiked = false,
     this.replies = 0,
@@ -93,25 +89,14 @@ class _FeedPageState extends State<FeedPage>
 
   PostData _mapItemToPostData(Map<String, dynamic> item) {
     final String userLogin = item['user_login'] ?? 'anonimo';
-    // A API pode retornar o user como objeto aninhado ou apenas user_login como string
     final user = item['user'];
     final String userName = user?['name'] ?? userLogin;
-    String? photoUrl = user?['photo'];
-    if (photoUrl != null && !photoUrl.startsWith('http')) {
-      photoUrl = '${ApiService.baseUrl}$photoUrl';
-    }
-    String? postImageUrl = item['image'];
-    if (postImageUrl != null && !postImageUrl.startsWith('http')) {
-      postImageUrl = '${ApiService.baseUrl}$postImageUrl';
-    }
     return PostData(
       id: item['id'] ?? 0,
       userName: userName,
       userHandle: userLogin,
-      userPhoto: photoUrl,
       time: "agora",
       content: item['message'] ?? '',
-      imageUrl: postImageUrl,
       likes: item['likes_count'] ?? 0,
       isLiked: item['liked_by_me'] ?? false,
     );
@@ -514,12 +499,7 @@ class _PostWidgetState extends State<PostWidget> {
               child: CircleAvatar(
                 radius: 20,
                 backgroundColor: Colors.grey.shade300,
-                backgroundImage: widget.postData.userPhoto != null
-                    ? NetworkImage(widget.postData.userPhoto!)
-                    : null,
-                child: widget.postData.userPhoto == null
-                    ? Text(widget.postData.userName[0].toUpperCase())
-                    : null,
+                child: Text(widget.postData.userName[0].toUpperCase()),
               ),
             ),
             const SizedBox(width: 12),
@@ -548,14 +528,7 @@ class _PostWidgetState extends State<PostWidget> {
                   ),
                   const SizedBox(height: 4),
                   Text(widget.postData.content),
-                  if (widget.postData.imageUrl != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(15),
-                        child: Image.network(widget.postData.imageUrl!),
-                      ),
-                    ),
+
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
