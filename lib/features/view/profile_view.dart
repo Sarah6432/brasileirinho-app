@@ -57,7 +57,6 @@ class _ProfileViewState extends State<ProfileView> {
         final userPosts = allPosts.where((p) => p['post_id'] == null).toList();
         final followersList = results[2] as List<dynamic>;
 
-        // Busca likes e replies de cada post
         try {
           final likesFutures = userPosts
               .map((p) => ApiService.getPostLikes(widget.token, p['id']))

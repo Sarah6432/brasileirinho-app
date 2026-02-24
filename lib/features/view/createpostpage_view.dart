@@ -21,10 +21,10 @@ class _CreatePostPageState extends State<CreatePostPage> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() => _isLoading = false);
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erro ao publicar: $e")),
-      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Erro ao publicar: $e")));
     }
   }
 
@@ -32,7 +32,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: true, 
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -49,11 +49,23 @@ class _CreatePostPageState extends State<CreatePostPage> {
                 backgroundColor: const Color(0xFF5FB60E),
                 foregroundColor: Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
               ),
-              child: _isLoading 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Text("Publicar", style: TextStyle(fontWeight: FontWeight.bold)),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      "Publicar",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
             ),
           ),
         ],
@@ -95,11 +107,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
               color: Colors.white,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-            child: Row(
-              children: [
-                _buildIcon(Icons.image_outlined),
-              ],
-            ),
+            child: Row(children: [_buildIcon(Icons.image_outlined)]),
           ),
         ],
       ),

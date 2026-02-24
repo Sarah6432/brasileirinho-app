@@ -50,11 +50,12 @@ class _LoginViewState extends State<LoginView> {
           builder: (_) => FeedPage(token: token, userLogin: userLogin),
         ),
       );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      _showSnackBar(e.message);
     } catch (e) {
       if (!mounted) return;
-      _showSnackBar(
-        'Erro ao fazer login: ${e.toString().replaceFirst('Exception: ', '')}',
-      );
+      _showSnackBar('Erro inesperado. Tente novamente.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

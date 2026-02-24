@@ -4,7 +4,7 @@ import 'package:brasileirinho/features/view/reply_view.dart';
 
 class PostDetailsView extends StatefulWidget {
   final String token;
-  final dynamic post; 
+  final dynamic post;
 
   const PostDetailsView({super.key, required this.token, required this.post});
 
@@ -63,24 +63,48 @@ class _PostDetailsViewState extends State<PostDetailsView> {
                           children: [
                             CircleAvatar(child: Text(widget.post.userName[0])),
                             const SizedBox(width: 12),
-                            Text(widget.post.userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text(
+                              widget.post.userName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        Text(widget.post.content, style: const TextStyle(fontSize: 18)),
+                        Text(
+                          widget.post.content,
+                          style: const TextStyle(fontSize: 18),
+                        ),
                         const SizedBox(height: 8),
-                        Text(widget.post.time, style: const TextStyle(color: Colors.grey)),
+                        Text(
+                          widget.post.time,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
                       ],
                     ),
                   ),
                   const Divider(thickness: 0.5),
-                  
+
                   if (_isLoading)
-                    const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
                   else if (_replies.isEmpty)
-                    const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("Nenhuma resposta ainda.", style: TextStyle(color: Colors.grey))))
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text(
+                          "Nenhuma resposta ainda.",
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    )
                   else
-                    // ignore: unnecessary_to_list_in_spreads
                     ..._replies.map((reply) => _buildReplyItem(reply)).toList(),
                 ],
               ),
@@ -95,9 +119,9 @@ class _PostDetailsViewState extends State<PostDetailsView> {
             context,
             MaterialPageRoute(
               builder: (_) => ReplyView(
-                token: widget.token, 
-                postId: widget.post.id, 
-                userHandle: widget.post.userHandle
+                token: widget.token,
+                postId: widget.post.id,
+                userHandle: widget.post.userHandle,
               ),
             ),
           );
@@ -112,9 +136,18 @@ class _PostDetailsViewState extends State<PostDetailsView> {
     return Column(
       children: [
         ListTile(
-          leading: const CircleAvatar(radius: 18, child: Icon(Icons.person, size: 20)),
-          title: Text("@${reply['user_login']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          subtitle: Text(reply['message'], style: const TextStyle(color: Colors.black, fontSize: 15)),
+          leading: const CircleAvatar(
+            radius: 18,
+            child: Icon(Icons.person, size: 20),
+          ),
+          title: Text(
+            "@${reply['user_login']}",
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          subtitle: Text(
+            reply['message'],
+            style: const TextStyle(color: Colors.black, fontSize: 15),
+          ),
         ),
         const Divider(indent: 70, height: 1, thickness: 0.2),
       ],

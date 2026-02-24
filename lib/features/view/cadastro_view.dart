@@ -64,11 +64,12 @@ class _SignUpViewState extends State<SignUpView> {
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) Navigator.pop(context);
       });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      _showSnackBar(e.message);
     } catch (e) {
       if (!mounted) return;
-      _showSnackBar(
-        'Erro ao criar conta: ${e.toString().replaceFirst('Exception: ', '')}',
-      );
+      _showSnackBar('Erro inesperado. Tente novamente.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

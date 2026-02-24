@@ -38,7 +38,6 @@ class _SearchViewState extends State<SearchView>
     setState(() => _isLoading = true);
 
     try {
-      // Realiza as buscas na API conforme a documentação
       final results = await Future.wait([
         ApiService.searchUsers(widget.token, query),
         ApiService.searchPosts(widget.token, query),
@@ -140,7 +139,6 @@ class _SearchViewState extends State<SearchView>
       itemBuilder: (context, index) {
         final item = _postResults[index];
 
-        // Mapeia o JSON para o objeto PostData usado na FeedPage
         final post = PostData(
           id: item['id'] ?? 0,
           userName: item['user_login'] ?? 'Usuário',

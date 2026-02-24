@@ -113,7 +113,6 @@ class _FeedPageState extends State<FeedPage>
             .map<PostData>((item) => _mapItemToPostData(item))
             .toList();
 
-        // Busca likes de cada post para ter contagem e status corretos
         await _fetchLikesForPosts(posts);
 
         if (mounted) {
@@ -152,9 +151,7 @@ class _FeedPageState extends State<FeedPage>
         );
         posts[i].replies = repliesResults[i].length;
       }
-    } catch (_) {
-      // Se falhar, mantém valores padrão
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadFollowingPosts() async {
