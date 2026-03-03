@@ -50,12 +50,26 @@ class _FeedPageState extends State<FeedPage>
   String _userName = '';
   String _userLogin = '';
 
+  // Paginação - aba "Para você"
+  int _currentPage = 0;
+  bool _hasMorePosts = true;
+  bool _isLoadingMore = false;
+  final ScrollController _scrollController = ScrollController();
+
+  // Paginação - aba "Seguindo"
+  int _followingPage = 0;
+  bool _hasMoreFollowing = true;
+  bool _isLoadingMoreFollowing = false;
+  final ScrollController _followingScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(_onTabChanged);
     _userLogin = widget.userLogin;
+    _scrollController.addListener(_onScroll);
+    _followingScrollController.addListener(_onFollowingScroll);
     _loadUserData();
     _loadPosts();
   }
@@ -64,7 +78,29 @@ class _FeedPageState extends State<FeedPage>
   void dispose() {
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    _followingScrollController.removeListener(_onFollowingScroll);
+    _followingScrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_isLoadingMore &&
+        _hasMorePosts) {
+      _loadMorePosts();
+    }
+  }
+
+  void _onFollowingScroll() {
+    if (_followingScrollController.position.pixels >=
+            _followingScrollController.position.maxScrollExtent - 200 &&
+        !_isLoadingMoreFollowing &&
+        _hasMoreFollowing) {
+      _loadMoreFollowingPosts();
+    }
   }
 
   void _onTabChanged() {
@@ -104,23 +140,50 @@ class _FeedPageState extends State<FeedPage>
 
   Future<void> _loadPosts() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _currentPage = 0;
+      _hasMorePosts = true;
+      _posts = [];
+    });
     try {
-      final data = await ApiService.getPosts(widget.token);
-      if (mounted) {
+      int page = 0;
+      final List<PostData> allPosts = [];
+      const int minPosts = 10;
+
+      // Carrega páginas até ter pelo menos minPosts posts visíveis
+      while (allPosts.length < minPosts) {
+        final data = await ApiService.getPosts(widget.token, page: page);
+        if (data.isEmpty) {
+          // API não tem mais posts
+          _hasMorePosts = false;
+          break;
+        }
+
         final posts = data
             .where((item) => item['post_id'] == null)
             .map<PostData>((item) => _mapItemToPostData(item))
             .toList();
 
-        await _fetchLikesForPosts(posts);
+        // Filtra duplicados
+        final existingIds = allPosts.map((p) => p.id).toSet();
+        final uniquePosts =
+            posts.where((p) => !existingIds.contains(p.id)).toList();
 
-        if (mounted) {
-          setState(() {
-            _posts = posts;
-            _isLoading = false;
-          });
-        }
+        allPosts.addAll(uniquePosts);
+        page++;
+
+        if (!mounted) return;
+      }
+
+      await _fetchLikesForPosts(allPosts);
+
+      if (mounted) {
+        setState(() {
+          _posts = allPosts;
+          _isLoading = false;
+          _currentPage = page;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -128,6 +191,50 @@ class _FeedPageState extends State<FeedPage>
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text("Erro ao carregar posts: $e")));
+      }
+    }
+  }
+
+  Future<void> _loadMorePosts() async {
+    if (!mounted || _isLoadingMore || !_hasMorePosts) return;
+    setState(() => _isLoadingMore = true);
+    try {
+      final List<PostData> newUniquePosts = [];
+      int page = _currentPage;
+
+      // Tenta carregar até ter novos posts (pode ser que uma página só tenha replies)
+      while (newUniquePosts.isEmpty) {
+        final data = await ApiService.getPosts(widget.token, page: page);
+        if (data.isEmpty) {
+          _hasMorePosts = false;
+          break;
+        }
+
+        final newPosts = data
+            .where((item) => item['post_id'] == null)
+            .map<PostData>((item) => _mapItemToPostData(item))
+            .toList();
+
+        final existingIds = _posts.map((p) => p.id).toSet();
+        newUniquePosts
+            .addAll(newPosts.where((p) => !existingIds.contains(p.id)));
+        page++;
+
+        if (!mounted) return;
+      }
+
+      await _fetchLikesForPosts(newUniquePosts);
+
+      if (mounted) {
+        setState(() {
+          _posts.addAll(newUniquePosts);
+          _currentPage = page;
+          _isLoadingMore = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
       }
     }
   }
@@ -156,24 +263,49 @@ class _FeedPageState extends State<FeedPage>
 
   Future<void> _loadFollowingPosts() async {
     if (!mounted) return;
-    setState(() => _isLoadingFollowing = true);
+    setState(() {
+      _isLoadingFollowing = true;
+      _followingPage = 0;
+      _hasMoreFollowing = true;
+      _followingPosts = [];
+    });
     try {
-      final data = await ApiService.getPosts(widget.token, feedOnly: true);
-      if (mounted) {
+      int page = 0;
+      final List<PostData> allPosts = [];
+      const int minPosts = 10;
+
+      while (allPosts.length < minPosts) {
+        final data = await ApiService.getPosts(widget.token,
+            feedOnly: true, page: page);
+        if (data.isEmpty) {
+          _hasMoreFollowing = false;
+          break;
+        }
+
         final posts = data
             .where((item) => item['post_id'] == null)
             .map<PostData>((item) => _mapItemToPostData(item))
             .toList();
 
-        await _fetchLikesForPosts(posts);
+        final existingIds = allPosts.map((p) => p.id).toSet();
+        final uniquePosts =
+            posts.where((p) => !existingIds.contains(p.id)).toList();
 
-        if (mounted) {
-          setState(() {
-            _followingPosts = posts;
-            _isLoadingFollowing = false;
-            _followingLoaded = true;
-          });
-        }
+        allPosts.addAll(uniquePosts);
+        page++;
+
+        if (!mounted) return;
+      }
+
+      await _fetchLikesForPosts(allPosts);
+
+      if (mounted) {
+        setState(() {
+          _followingPosts = allPosts;
+          _isLoadingFollowing = false;
+          _followingLoaded = true;
+          _followingPage = page;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -181,6 +313,50 @@ class _FeedPageState extends State<FeedPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Erro ao carregar timeline: $e")),
         );
+      }
+    }
+  }
+
+  Future<void> _loadMoreFollowingPosts() async {
+    if (!mounted || _isLoadingMoreFollowing || !_hasMoreFollowing) return;
+    setState(() => _isLoadingMoreFollowing = true);
+    try {
+      final List<PostData> newUniquePosts = [];
+      int page = _followingPage;
+
+      while (newUniquePosts.isEmpty) {
+        final data = await ApiService.getPosts(widget.token,
+            feedOnly: true, page: page);
+        if (data.isEmpty) {
+          _hasMoreFollowing = false;
+          break;
+        }
+
+        final newPosts = data
+            .where((item) => item['post_id'] == null)
+            .map<PostData>((item) => _mapItemToPostData(item))
+            .toList();
+
+        final existingIds = _followingPosts.map((p) => p.id).toSet();
+        newUniquePosts
+            .addAll(newPosts.where((p) => !existingIds.contains(p.id)));
+        page++;
+
+        if (!mounted) return;
+      }
+
+      await _fetchLikesForPosts(newUniquePosts);
+
+      if (mounted) {
+        setState(() {
+          _followingPosts.addAll(newUniquePosts);
+          _followingPage = page;
+          _isLoadingMoreFollowing = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingMoreFollowing = false);
       }
     }
   }
@@ -309,8 +485,15 @@ class _FeedPageState extends State<FeedPage>
 
   Widget _buildTimeline() {
     return ListView.builder(
-      itemCount: _posts.length,
+      controller: _scrollController,
+      itemCount: _posts.length + (_isLoadingMore ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index == _posts.length) {
+          return const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
         final post = _posts[index];
         return Column(
           children: [
@@ -335,8 +518,15 @@ class _FeedPageState extends State<FeedPage>
 
   Widget _buildFollowingTimeline() {
     return ListView.builder(
-      itemCount: _followingPosts.length,
+      controller: _followingScrollController,
+      itemCount: _followingPosts.length + (_isLoadingMoreFollowing ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index == _followingPosts.length) {
+          return const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
         final post = _followingPosts[index];
         return Column(
           children: [
