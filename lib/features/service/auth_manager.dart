@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Modelo para uma sessão de usuário salva.
@@ -26,6 +26,9 @@ class AuthManager extends ChangeNotifier {
 
   static const _storageKey = 'saved_accounts';
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
+
+  /// Chave global do Navigator para redirecionar ao login em caso de 401.
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   List<Session> savedAccounts = [];
   Session? currentSession;
@@ -56,6 +59,20 @@ class AuthManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Atualiza o login da conta ativa (após edição de perfil).
+  Future<void> updateAccountLogin(String oldLogin, String newLogin) async {
+    final index = savedAccounts.indexWhere((s) => s.login == oldLogin);
+    if (index == -1) return;
+    final oldSession = savedAccounts[index];
+    final newSession = Session(login: newLogin, token: oldSession.token);
+    savedAccounts[index] = newSession;
+    if (currentSession?.login == oldLogin) {
+      currentSession = newSession;
+    }
+    await _persist();
+    notifyListeners();
+  }
+
   /// Troca para a conta com o [login] informado.
   Future<void> switchAccount(String login) async {
     final session = savedAccounts.firstWhere((s) => s.login == login);
@@ -74,6 +91,16 @@ class AuthManager extends ChangeNotifier {
     currentSession = savedAccounts.isNotEmpty ? savedAccounts.first : null;
     await _persist();
     notifyListeners();
+  }
+
+  /// Chamado quando a API retorna 401 (token expirado).
+  /// Remove a sessão inválida e redireciona para o login.
+  Future<void> handleSessionExpired() async {
+    await logout();
+    final nav = navigatorKey.currentState;
+    if (nav != null) {
+      nav.pushNamedAndRemoveUntil('/', (route) => false);
+    }
   }
 
   /// Persiste a lista de contas no storage seguro.

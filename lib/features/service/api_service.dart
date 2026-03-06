@@ -51,7 +51,21 @@ class ApiException implements Exception {
   };
 
   /// Converte o body de erro da API em uma mensagem legível.
-  static ApiException fromResponse(int statusCode, dynamic body) {
+  /// [isLoginAttempt] evita redirecionar ao login quando o 401 vem da própria tentativa de login.
+  static ApiException fromResponse(
+    int statusCode,
+    dynamic body, {
+    bool isLoginAttempt = false,
+  }) {
+    // Token expirado — redireciona ao login (exceto durante tentativa de login)
+    if (statusCode == 401 && !isLoginAttempt) {
+      AuthManager.instance.handleSessionExpired();
+      return ApiException(
+        'Sessão expirada. Faça login novamente.',
+        statusCode: statusCode,
+      );
+    }
+
     // Caso especial: login inválido
     if (statusCode == 401) {
       return ApiException('Login ou senha inválidos.', statusCode: statusCode);
@@ -144,7 +158,11 @@ class ApiService {
       if (response.statusCode == 200 && body is Map<String, dynamic>) {
         return body;
       } else {
-        throw ApiException.fromResponse(response.statusCode, body);
+        throw ApiException.fromResponse(
+          response.statusCode,
+          body,
+          isLoginAttempt: true,
+        );
       }
     } on ApiException {
       rethrow;

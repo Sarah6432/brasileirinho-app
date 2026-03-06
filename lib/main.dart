@@ -15,13 +15,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Se já existe uma sessão salva, vai direto pro Feed
     final hasSession = AuthManager.instance.currentSession != null;
 
     return MaterialApp(
       title: 'Brasileirinho',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      navigatorKey: AuthManager.instance.navigatorKey,
+      routes: {'/': (_) => const LoginView()},
+      initialRoute: null, // usamos home em vez de initialRoute
       home: hasSession ? const FeedPage() : const LoginView(),
     );
   }

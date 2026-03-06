@@ -1,4 +1,5 @@
 import 'package:brasileirinho/features/service/api_service.dart';
+import 'package:brasileirinho/features/service/auth_manager.dart';
 import 'package:brasileirinho/features/view/login_view.dart';
 import 'package:flutter/material.dart';
 
@@ -77,7 +78,17 @@ class _EditProfileViewState extends State<EditProfileView> {
 
       if (!mounted) return;
 
+      // Sincroniza mudança de login com o AuthManager
+      if (login != widget.currentLogin && login.isNotEmpty) {
+        await AuthManager.instance.updateAccountLogin(
+          widget.currentLogin,
+          login,
+        );
+      }
+
       if (password.isNotEmpty) {
+        // Senha mudou — sessão invalidada, remove do AuthManager
+        await AuthManager.instance.logout();
         _showSnackBar(
           'Dados atualizados! Faça login novamente.',
           isError: false,
@@ -130,6 +141,8 @@ class _EditProfileViewState extends State<EditProfileView> {
 
     try {
       await ApiService.deleteUser();
+      // Remove a conta do AuthManager
+      await AuthManager.instance.logout();
 
       if (!mounted) return;
 
