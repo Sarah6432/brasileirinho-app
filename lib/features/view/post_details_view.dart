@@ -3,10 +3,9 @@ import 'package:brasileirinho/features/service/api_service.dart';
 import 'package:brasileirinho/features/view/reply_view.dart';
 
 class PostDetailsView extends StatefulWidget {
-  final String token;
   final dynamic post;
 
-  const PostDetailsView({super.key, required this.token, required this.post});
+  const PostDetailsView({super.key, required this.post});
 
   @override
   State<PostDetailsView> createState() => _PostDetailsViewState();
@@ -25,7 +24,7 @@ class _PostDetailsViewState extends State<PostDetailsView> {
   Future<void> _loadReplies() async {
     setState(() => _isLoading = true);
     try {
-      final data = await ApiService.getReplies(widget.token, widget.post.id);
+      final data = await ApiService.getReplies(widget.post.id);
       if (mounted) {
         setState(() {
           _replies = data;
@@ -119,7 +118,6 @@ class _PostDetailsViewState extends State<PostDetailsView> {
             context,
             MaterialPageRoute(
               builder: (_) => ReplyView(
-                token: widget.token,
                 postId: widget.post.id,
                 userHandle: widget.post.userHandle,
               ),

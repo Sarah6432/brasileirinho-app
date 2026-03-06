@@ -1,4 +1,5 @@
 import 'package:brasileirinho/features/service/api_service.dart';
+import 'package:brasileirinho/features/service/auth_manager.dart';
 import 'package:brasileirinho/features/view/cadastro_view.dart';
 import 'package:brasileirinho/features/view/feedpage_view.dart';
 import 'package:flutter/material.dart';
@@ -42,13 +43,14 @@ class _LoginViewState extends State<LoginView> {
       final token = session['token'] as String;
       final userLogin = session['user_login'] as String;
 
+      // Salva a conta no gerenciador global
+      await AuthManager.instance.addAccount(userLogin, token);
+
       _showSnackBar('Login realizado com sucesso!', isError: false);
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => FeedPage(token: token, userLogin: userLogin),
-        ),
+        MaterialPageRoute(builder: (_) => const FeedPage()),
       );
     } on ApiException catch (e) {
       if (!mounted) return;

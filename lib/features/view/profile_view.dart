@@ -1,22 +1,14 @@
 import 'package:brasileirinho/features/service/api_service.dart';
+import 'package:brasileirinho/features/service/auth_manager.dart';
 import 'package:brasileirinho/features/view/edit_profile_view.dart';
 import 'package:brasileirinho/features/view/post_details_view.dart';
 import 'package:brasileirinho/features/view/feedpage_view.dart' show PostData;
 import 'package:flutter/material.dart';
 
 class ProfileView extends StatefulWidget {
-  final String token;
   final String userLogin;
-  final String currentUserLogin;
-  final bool isCurrentUser;
 
-  const ProfileView({
-    super.key,
-    required this.token,
-    required this.userLogin,
-    required this.currentUserLogin,
-    this.isCurrentUser = false,
-  });
+  const ProfileView({super.key, required this.userLogin});
 
   @override
   State<ProfileView> createState() => _ProfileViewState();
@@ -30,6 +22,10 @@ class _ProfileViewState extends State<ProfileView> {
   bool _isFollowing = false;
   // ignore: unused_field
   String? _error;
+
+  String get _currentUserLogin => AuthManager.instance.currentSession!.login;
+
+  bool get _isCurrentUser => widget.userLogin == _currentUserLogin;
 
   @override
   void initState() {
@@ -46,9 +42,9 @@ class _ProfileViewState extends State<ProfileView> {
 
     try {
       final results = await Future.wait([
-        ApiService.getUser(widget.token, widget.userLogin),
-        ApiService.getUserPosts(widget.token, widget.userLogin),
-        ApiService.getFollowers(widget.token, widget.userLogin),
+        ApiService.getUser(widget.userLogin),
+        ApiService.getUserPosts(widget.userLogin),
+        ApiService.getFollowers(widget.userLogin),
       ]);
 
       if (mounted) {
@@ -59,10 +55,10 @@ class _ProfileViewState extends State<ProfileView> {
 
         try {
           final likesFutures = userPosts
-              .map((p) => ApiService.getPostLikes(widget.token, p['id']))
+              .map((p) => ApiService.getPostLikes(p['id']))
               .toList();
           final repliesFutures = userPosts
-              .map((p) => ApiService.getReplies(widget.token, p['id']))
+              .map((p) => ApiService.getReplies(p['id']))
               .toList();
           final likesResults = await Future.wait(likesFutures);
           final repliesResults = await Future.wait(repliesFutures);
@@ -77,7 +73,7 @@ class _ProfileViewState extends State<ProfileView> {
         } catch (_) {}
 
         final following = followersList.any(
-          (f) => f['follower_login'] == widget.currentUserLogin,
+          (f) => f['follower_login'] == _currentUserLogin,
         );
 
         setState(() {
@@ -104,9 +100,9 @@ class _ProfileViewState extends State<ProfileView> {
 
     try {
       if (oldStatus) {
-        await ApiService.unfollowUser(widget.token, widget.userLogin);
+        await ApiService.unfollowUser(widget.userLogin);
       } else {
-        await ApiService.followUser(widget.token, widget.userLogin);
+        await ApiService.followUser(widget.userLogin);
       }
       _loadAll();
     } catch (e) {
@@ -121,7 +117,7 @@ class _ProfileViewState extends State<ProfileView> {
 
   Future<void> _deletePost(int postId) async {
     try {
-      await ApiService.deletePost(widget.token, postId);
+      await ApiService.deletePost(postId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Post excluído com sucesso")),
@@ -277,14 +273,13 @@ class _ProfileViewState extends State<ProfileView> {
                     const Spacer(),
                     Transform.translate(
                       offset: const Offset(0, -10),
-                      child: widget.isCurrentUser
+                      child: _isCurrentUser
                           ? OutlinedButton(
                               onPressed: () async {
                                 final updated = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => EditProfileView(
-                                      token: widget.token,
                                       currentName: name,
                                       currentLogin: login,
                                     ),
@@ -410,8 +405,7 @@ class _ProfileViewState extends State<ProfileView> {
               return ProfilePostItem(
                 key: ValueKey("profile_post_${post['id']}"),
                 post: post,
-                token: widget.token,
-                isCurrentUser: widget.isCurrentUser,
+                isCurrentUser: _isCurrentUser,
                 onDelete: () => _showDeleteDialog(post['id']),
               );
             }, childCount: _posts.length),
@@ -423,14 +417,12 @@ class _ProfileViewState extends State<ProfileView> {
 
 class ProfilePostItem extends StatefulWidget {
   final Map<String, dynamic> post;
-  final String token;
   final bool isCurrentUser;
   final VoidCallback onDelete;
 
   const ProfilePostItem({
     super.key,
     required this.post,
-    required this.token,
     required this.isCurrentUser,
     required this.onDelete,
   });
@@ -461,9 +453,9 @@ class _ProfilePostItemState extends State<ProfilePostItem> {
 
     try {
       if (isLiked) {
-        await ApiService.likePost(widget.token, widget.post['id']);
+        await ApiService.likePost(widget.post['id']);
       } else {
-        await ApiService.unlikePost(widget.token, widget.post['id']);
+        await ApiService.unlikePost(widget.post['id']);
       }
     } catch (e) {
       if (mounted && !e.toString().contains("422")) {
@@ -495,10 +487,7 @@ class _ProfilePostItemState extends State<ProfilePostItem> {
         );
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) =>
-                PostDetailsView(token: widget.token, post: postData),
-          ),
+          MaterialPageRoute(builder: (_) => PostDetailsView(post: postData)),
         );
       },
       child: Container(

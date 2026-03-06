@@ -3,13 +3,11 @@ import 'package:brasileirinho/features/view/login_view.dart';
 import 'package:flutter/material.dart';
 
 class EditProfileView extends StatefulWidget {
-  final String token;
   final String currentName;
   final String currentLogin;
 
   const EditProfileView({
     super.key,
-    required this.token,
     required this.currentName,
     required this.currentLogin,
   });
@@ -69,7 +67,6 @@ class _EditProfileViewState extends State<EditProfileView> {
 
     try {
       await ApiService.updateUser(
-        widget.token,
         name: name != widget.currentName ? name : null,
         login: login != widget.currentLogin ? login : null,
         password: password.isNotEmpty ? password : null,
@@ -132,7 +129,7 @@ class _EditProfileViewState extends State<EditProfileView> {
     setState(() => _isLoading = true);
 
     try {
-      await ApiService.deleteUser(widget.token);
+      await ApiService.deleteUser();
 
       if (!mounted) return;
 

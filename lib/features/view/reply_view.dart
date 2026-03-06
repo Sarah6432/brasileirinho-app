@@ -2,16 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:brasileirinho/features/service/api_service.dart';
 
 class ReplyView extends StatefulWidget {
-  final String token;
   final int postId;
   final String userHandle;
 
-  const ReplyView({
-    super.key, 
-    required this.token, 
-    required this.postId, 
-    required this.userHandle
-  });
+  const ReplyView({super.key, required this.postId, required this.userHandle});
 
   @override
   State<ReplyView> createState() => _ReplyViewState();
@@ -23,22 +17,18 @@ class _ReplyViewState extends State<ReplyView> {
 
   Future<void> _handleSend() async {
     if (_controller.text.trim().isEmpty) return;
-    
+
     setState(() => _isSending = true);
 
     try {
-      await ApiService.createReply(
-        widget.token, 
-        widget.postId, 
-        _controller.text.trim()
-      );
+      await ApiService.createReply(widget.postId, _controller.text.trim());
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
         setState(() => _isSending = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro ao responder: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Erro ao responder: $e")));
       }
     }
   }
@@ -63,9 +53,22 @@ class _ReplyViewState extends State<ReplyView> {
                 backgroundColor: const Color(0xFF5FB60E),
                 shape: const StadiumBorder(),
               ),
-              child: _isSending 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Text("Responder", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: _isSending
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      "Responder",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -76,8 +79,14 @@ class _ReplyViewState extends State<ReplyView> {
           children: [
             Row(
               children: [
-                Text("Respondendo a ", style: TextStyle(color: Colors.grey.shade600)),
-                Text(widget.userHandle, style: const TextStyle(color: Color(0xFF5FB60E))),
+                Text(
+                  "Respondendo a ",
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+                Text(
+                  widget.userHandle,
+                  style: const TextStyle(color: Color(0xFF5FB60E)),
+                ),
               ],
             ),
             Expanded(

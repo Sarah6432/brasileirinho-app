@@ -5,14 +5,7 @@ import 'package:brasileirinho/features/view/post_details_view.dart';
 import 'package:brasileirinho/features/view/feedpage_view.dart';
 
 class SearchView extends StatefulWidget {
-  final String token;
-  final String currentUserLogin;
-
-  const SearchView({
-    super.key,
-    required this.token,
-    required this.currentUserLogin,
-  });
+  const SearchView({super.key});
 
   @override
   State<SearchView> createState() => _SearchViewState();
@@ -39,8 +32,8 @@ class _SearchViewState extends State<SearchView>
 
     try {
       final results = await Future.wait([
-        ApiService.searchUsers(widget.token, query),
-        ApiService.searchPosts(widget.token, query),
+        ApiService.searchUsers(query),
+        ApiService.searchPosts(query),
       ]);
 
       setState(() {
@@ -96,8 +89,9 @@ class _SearchViewState extends State<SearchView>
   }
 
   Widget _buildUserResults() {
-    if (_userResults.isEmpty)
+    if (_userResults.isEmpty) {
       return const Center(child: Text("Nenhum usuário encontrado."));
+    }
 
     return ListView.builder(
       itemCount: _userResults.length,
@@ -115,14 +109,7 @@ class _SearchViewState extends State<SearchView>
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => ProfileView(
-                  token: widget.token,
-                  userLogin: login,
-                  currentUserLogin: widget.currentUserLogin,
-                  isCurrentUser: login == widget.currentUserLogin,
-                ),
-              ),
+              MaterialPageRoute(builder: (_) => ProfileView(userLogin: login)),
             );
           },
         );
@@ -131,8 +118,9 @@ class _SearchViewState extends State<SearchView>
   }
 
   Widget _buildPostResults() {
-    if (_postResults.isEmpty)
+    if (_postResults.isEmpty) {
       return const Center(child: Text("Nenhuma publicação encontrada."));
+    }
 
     return ListView.builder(
       itemCount: _postResults.length,
@@ -160,10 +148,7 @@ class _SearchViewState extends State<SearchView>
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    PostDetailsView(token: widget.token, post: post),
-              ),
+              MaterialPageRoute(builder: (_) => PostDetailsView(post: post)),
             );
           },
         );

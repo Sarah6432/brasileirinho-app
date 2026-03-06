@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:brasileirinho/features/service/auth_manager.dart';
 
 /// Exceção personalizada da API com mensagens amigáveis em PT-BR.
 class ApiException implements Exception {
@@ -118,9 +119,10 @@ class ApiService {
 
   static String get baseUrl => _baseUrl;
 
-  static Map<String, String> _authHeaders(String token) => {
+  /// Headers de autenticação — lê o token diretamente do AuthManager global.
+  static Map<String, String> _authHeaders() => {
     'Content-Type': 'application/json',
-    'x-session-token': token,
+    'x-session-token': AuthManager.instance.currentSession?.token ?? '',
   };
 
   // --- SESSÃO ---
@@ -155,9 +157,9 @@ class ApiService {
     }
   }
 
-  static Future<void> deleteSession(String token) async {
+  static Future<void> deleteSession() async {
     final url = Uri.parse('$_baseUrl/sessions/1');
-    await http.delete(url, headers: _authHeaders(token));
+    await http.delete(url, headers: _authHeaders());
   }
 
   // --- USUÁRIOS ---
@@ -201,13 +203,10 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> getUser(
-    String token,
-    String login,
-  ) async {
+  static Future<Map<String, dynamic>> getUser(String login) async {
     try {
       final url = Uri.parse('$_baseUrl/users/$login');
-      final response = await http.get(url, headers: _authHeaders(token));
+      final response = await http.get(url, headers: _authHeaders());
 
       if (response.statusCode == 200) {
         final body = _safeJsonDecode(response.body);
@@ -230,8 +229,7 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> updateUser(
-    String token, {
+  static Future<Map<String, dynamic>> updateUser({
     String? login,
     String? name,
     String? password,
@@ -250,7 +248,7 @@ class ApiService {
 
       final response = await http.patch(
         url,
-        headers: _authHeaders(token),
+        headers: _authHeaders(),
         body: jsonEncode({'user': userData}),
       );
 
@@ -273,10 +271,10 @@ class ApiService {
     }
   }
 
-  static Future<void> deleteUser(String token) async {
+  static Future<void> deleteUser() async {
     try {
       final url = Uri.parse('$_baseUrl/users/1');
-      final response = await http.delete(url, headers: _authHeaders(token));
+      final response = await http.delete(url, headers: _authHeaders());
 
       if (response.statusCode != 204) {
         throw ApiException.fromResponse(
@@ -297,8 +295,7 @@ class ApiService {
 
   // --- POSTAGENS ---
 
-  static Future<List<dynamic>> getPosts(
-    String token, {
+  static Future<List<dynamic>> getPosts({
     bool feedOnly = false,
     int? page,
     String? search,
@@ -312,7 +309,7 @@ class ApiService {
       final uri = Uri.parse(
         '$_baseUrl/posts',
       ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
-      final response = await http.get(uri, headers: _authHeaders(token));
+      final response = await http.get(uri, headers: _authHeaders());
 
       if (response.statusCode == 200) {
         final body = _safeJsonDecode(response.body);
@@ -335,11 +332,7 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> getUserPosts(
-    String token,
-    String login, {
-    int? page,
-  }) async {
+  static Future<List<dynamic>> getUserPosts(String login, {int? page}) async {
     try {
       final queryParams = <String, String>{};
       if (page != null) queryParams['page'] = page.toString();
@@ -347,7 +340,7 @@ class ApiService {
       final uri = Uri.parse(
         '$_baseUrl/users/$login/posts',
       ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
-      final response = await http.get(uri, headers: _authHeaders(token));
+      final response = await http.get(uri, headers: _authHeaders());
 
       if (response.statusCode == 200) {
         final body = _safeJsonDecode(response.body);
@@ -370,13 +363,13 @@ class ApiService {
     }
   }
 
-  static Future<void> createPost(String token, String message) async {
+  static Future<void> createPost(String message) async {
     try {
       final url = Uri.parse('$_baseUrl/posts');
 
       final response = await http.post(
         url,
-        headers: _authHeaders(token),
+        headers: _authHeaders(),
         body: jsonEncode({
           'post': {'message': message},
         }),
@@ -399,10 +392,10 @@ class ApiService {
     }
   }
 
-  static Future<void> deletePost(String token, int postId) async {
+  static Future<void> deletePost(int postId) async {
     try {
       final url = Uri.parse('$_baseUrl/posts/$postId');
-      final response = await http.delete(url, headers: _authHeaders(token));
+      final response = await http.delete(url, headers: _authHeaders());
 
       if (response.statusCode != 204) {
         throw ApiException.fromResponse(
@@ -423,11 +416,7 @@ class ApiService {
 
   // --- RESPOSTAS (REPLIES) ---
 
-  static Future<List<dynamic>> getReplies(
-    String token,
-    int postId, {
-    int? page,
-  }) async {
+  static Future<List<dynamic>> getReplies(int postId, {int? page}) async {
     try {
       final queryParams = <String, String>{};
       if (page != null) queryParams['page'] = page.toString();
@@ -435,7 +424,7 @@ class ApiService {
       final uri = Uri.parse(
         '$_baseUrl/posts/$postId/replies',
       ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
-      final response = await http.get(uri, headers: _authHeaders(token));
+      final response = await http.get(uri, headers: _authHeaders());
 
       if (response.statusCode == 200) {
         final body = _safeJsonDecode(response.body);
@@ -459,7 +448,6 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> createReply(
-    String token,
     int postId,
     String message,
   ) async {
@@ -467,7 +455,7 @@ class ApiService {
       final url = Uri.parse('$_baseUrl/posts/$postId/replies');
       final response = await http.post(
         url,
-        headers: _authHeaders(token),
+        headers: _authHeaders(),
         body: jsonEncode({
           "reply": {"message": message},
         }),
@@ -493,10 +481,10 @@ class ApiService {
 
   // --- CURTIDAS (LIKES) ---
 
-  static Future<List<dynamic>> getPostLikes(String token, int postId) async {
+  static Future<List<dynamic>> getPostLikes(int postId) async {
     try {
       final url = Uri.parse('$_baseUrl/posts/$postId/likes');
-      final response = await http.get(url, headers: _authHeaders(token));
+      final response = await http.get(url, headers: _authHeaders());
 
       if (response.statusCode == 200) {
         final body = _safeJsonDecode(response.body);
@@ -508,12 +496,12 @@ class ApiService {
     }
   }
 
-  static Future<void> likePost(String token, int postId) async {
+  static Future<void> likePost(int postId) async {
     try {
       final url = Uri.parse('$_baseUrl/posts/$postId/likes');
       final response = await http.post(
         url,
-        headers: _authHeaders(token),
+        headers: _authHeaders(),
         body: jsonEncode({}),
       );
 
@@ -534,10 +522,10 @@ class ApiService {
     }
   }
 
-  static Future<void> unlikePost(String token, int postId) async {
+  static Future<void> unlikePost(int postId) async {
     try {
       final url = Uri.parse('$_baseUrl/posts/$postId/likes/1');
-      final response = await http.delete(url, headers: _authHeaders(token));
+      final response = await http.delete(url, headers: _authHeaders());
 
       if (response.statusCode != 204 &&
           response.statusCode != 200 &&
@@ -560,10 +548,10 @@ class ApiService {
 
   // --- SEGUIDORES ---
 
-  static Future<List<dynamic>> getFollowers(String token, String login) async {
+  static Future<List<dynamic>> getFollowers(String login) async {
     try {
       final url = Uri.parse('$_baseUrl/users/$login/followers');
-      final response = await http.get(url, headers: _authHeaders(token));
+      final response = await http.get(url, headers: _authHeaders());
 
       if (response.statusCode == 200) {
         final body = _safeJsonDecode(response.body);
@@ -586,12 +574,12 @@ class ApiService {
     }
   }
 
-  static Future<void> followUser(String token, String login) async {
+  static Future<void> followUser(String login) async {
     try {
       final url = Uri.parse('$_baseUrl/users/$login/followers');
       final response = await http.post(
         url,
-        headers: _authHeaders(token),
+        headers: _authHeaders(),
         body: jsonEncode({}),
       );
 
@@ -612,10 +600,10 @@ class ApiService {
     }
   }
 
-  static Future<void> unfollowUser(String token, String login) async {
+  static Future<void> unfollowUser(String login) async {
     try {
       final url = Uri.parse('$_baseUrl/users/$login/followers/1');
-      final response = await http.delete(url, headers: _authHeaders(token));
+      final response = await http.delete(url, headers: _authHeaders());
 
       if (response.statusCode != 204 &&
           response.statusCode != 200 &&
@@ -638,11 +626,7 @@ class ApiService {
 
   // --- BUSCA (Corrigido conforme Documentação) ---
 
-  static Future<List<dynamic>> searchUsers(
-    String token,
-    String query, {
-    int? page,
-  }) async {
+  static Future<List<dynamic>> searchUsers(String query, {int? page}) async {
     try {
       final queryParams = <String, String>{'search': query};
       if (page != null) queryParams['page'] = page.toString();
@@ -650,7 +634,7 @@ class ApiService {
       final uri = Uri.parse(
         '$_baseUrl/users',
       ).replace(queryParameters: queryParams);
-      final response = await http.get(uri, headers: _authHeaders(token));
+      final response = await http.get(uri, headers: _authHeaders());
 
       if (response.statusCode == 200) {
         final body = _safeJsonDecode(response.body);
@@ -672,11 +656,7 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> searchPosts(
-    String token,
-    String query, {
-    int? page,
-  }) async {
+  static Future<List<dynamic>> searchPosts(String query, {int? page}) async {
     try {
       final queryParams = <String, String>{'search': query};
       if (page != null) queryParams['page'] = page.toString();
@@ -684,7 +664,7 @@ class ApiService {
       final uri = Uri.parse(
         '$_baseUrl/posts',
       ).replace(queryParameters: queryParams);
-      final response = await http.get(uri, headers: _authHeaders(token));
+      final response = await http.get(uri, headers: _authHeaders());
 
       if (response.statusCode == 200) {
         final body = _safeJsonDecode(response.body);

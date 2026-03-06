@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import '../service/api_service.dart';
 
 class CreatePostPage extends StatefulWidget {
-  final String token;
-  const CreatePostPage({super.key, required this.token});
+  const CreatePostPage({super.key});
 
   @override
   State<CreatePostPage> createState() => _CreatePostPageState();
@@ -17,7 +16,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
     if (_controller.text.trim().isEmpty) return;
     setState(() => _isLoading = true);
     try {
-      await ApiService.createPost(widget.token, _controller.text);
+      await ApiService.createPost(_controller.text);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() => _isLoading = false);

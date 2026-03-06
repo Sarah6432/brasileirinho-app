@@ -1,3 +1,4 @@
+import 'package:brasileirinho/features/service/auth_manager.dart';
 import 'package:brasileirinho/features/view/reply_view.dart';
 import 'package:flutter/material.dart';
 import 'package:brasileirinho/features/service/api_service.dart';
@@ -30,9 +31,7 @@ class PostData {
 }
 
 class FeedPage extends StatefulWidget {
-  final String token;
-  final String userLogin;
-  const FeedPage({super.key, required this.token, required this.userLogin});
+  const FeedPage({super.key});
 
   @override
   State<FeedPage> createState() => _FeedPageState();
@@ -62,12 +61,14 @@ class _FeedPageState extends State<FeedPage>
   bool _isLoadingMoreFollowing = false;
   final ScrollController _followingScrollController = ScrollController();
 
+  String get _currentUserLogin => AuthManager.instance.currentSession!.login;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(_onTabChanged);
-    _userLogin = widget.userLogin;
+    _userLogin = _currentUserLogin;
     _scrollController.addListener(_onScroll);
     _followingScrollController.addListener(_onFollowingScroll);
     _loadUserData();
@@ -111,15 +112,15 @@ class _FeedPageState extends State<FeedPage>
 
   Future<void> _loadUserData() async {
     try {
-      final userData = await ApiService.getUser(widget.token, widget.userLogin);
+      final userData = await ApiService.getUser(_currentUserLogin);
       if (mounted) {
         setState(() {
           _userName = userData['name'] ?? '';
-          _userLogin = userData['login'] ?? widget.userLogin;
+          _userLogin = userData['login'] ?? _currentUserLogin;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _userName = widget.userLogin);
+      if (mounted) setState(() => _userName = _currentUserLogin);
     }
   }
 
@@ -153,7 +154,7 @@ class _FeedPageState extends State<FeedPage>
 
       // Carrega páginas até ter pelo menos minPosts posts visíveis
       while (allPosts.length < minPosts) {
-        final data = await ApiService.getPosts(widget.token, page: page);
+        final data = await ApiService.getPosts(page: page);
         if (data.isEmpty) {
           // API não tem mais posts
           _hasMorePosts = false;
@@ -167,8 +168,9 @@ class _FeedPageState extends State<FeedPage>
 
         // Filtra duplicados
         final existingIds = allPosts.map((p) => p.id).toSet();
-        final uniquePosts =
-            posts.where((p) => !existingIds.contains(p.id)).toList();
+        final uniquePosts = posts
+            .where((p) => !existingIds.contains(p.id))
+            .toList();
 
         allPosts.addAll(uniquePosts);
         page++;
@@ -204,7 +206,7 @@ class _FeedPageState extends State<FeedPage>
 
       // Tenta carregar até ter novos posts (pode ser que uma página só tenha replies)
       while (newUniquePosts.isEmpty) {
-        final data = await ApiService.getPosts(widget.token, page: page);
+        final data = await ApiService.getPosts(page: page);
         if (data.isEmpty) {
           _hasMorePosts = false;
           break;
@@ -216,8 +218,9 @@ class _FeedPageState extends State<FeedPage>
             .toList();
 
         final existingIds = _posts.map((p) => p.id).toSet();
-        newUniquePosts
-            .addAll(newPosts.where((p) => !existingIds.contains(p.id)));
+        newUniquePosts.addAll(
+          newPosts.where((p) => !existingIds.contains(p.id)),
+        );
         page++;
 
         if (!mounted) return;
@@ -242,10 +245,10 @@ class _FeedPageState extends State<FeedPage>
   Future<void> _fetchLikesForPosts(List<PostData> posts) async {
     try {
       final likesFutures = posts
-          .map((post) => ApiService.getPostLikes(widget.token, post.id))
+          .map((post) => ApiService.getPostLikes(post.id))
           .toList();
       final repliesFutures = posts
-          .map((post) => ApiService.getReplies(widget.token, post.id))
+          .map((post) => ApiService.getReplies(post.id))
           .toList();
       final likesResults = await Future.wait(likesFutures);
       final repliesResults = await Future.wait(repliesFutures);
@@ -254,7 +257,7 @@ class _FeedPageState extends State<FeedPage>
         final likes = likesResults[i];
         posts[i].likes = likes.length;
         posts[i].isLiked = likes.any(
-          (like) => like['user_login'] == widget.userLogin,
+          (like) => like['user_login'] == _currentUserLogin,
         );
         posts[i].replies = repliesResults[i].length;
       }
@@ -275,8 +278,7 @@ class _FeedPageState extends State<FeedPage>
       const int minPosts = 10;
 
       while (allPosts.length < minPosts) {
-        final data = await ApiService.getPosts(widget.token,
-            feedOnly: true, page: page);
+        final data = await ApiService.getPosts(feedOnly: true, page: page);
         if (data.isEmpty) {
           _hasMoreFollowing = false;
           break;
@@ -288,8 +290,9 @@ class _FeedPageState extends State<FeedPage>
             .toList();
 
         final existingIds = allPosts.map((p) => p.id).toSet();
-        final uniquePosts =
-            posts.where((p) => !existingIds.contains(p.id)).toList();
+        final uniquePosts = posts
+            .where((p) => !existingIds.contains(p.id))
+            .toList();
 
         allPosts.addAll(uniquePosts);
         page++;
@@ -325,8 +328,7 @@ class _FeedPageState extends State<FeedPage>
       int page = _followingPage;
 
       while (newUniquePosts.isEmpty) {
-        final data = await ApiService.getPosts(widget.token,
-            feedOnly: true, page: page);
+        final data = await ApiService.getPosts(feedOnly: true, page: page);
         if (data.isEmpty) {
           _hasMoreFollowing = false;
           break;
@@ -338,8 +340,9 @@ class _FeedPageState extends State<FeedPage>
             .toList();
 
         final existingIds = _followingPosts.map((p) => p.id).toSet();
-        newUniquePosts
-            .addAll(newPosts.where((p) => !existingIds.contains(p.id)));
+        newUniquePosts.addAll(
+          newPosts.where((p) => !existingIds.contains(p.id)),
+        );
         page++;
 
         if (!mounted) return;
@@ -363,14 +366,24 @@ class _FeedPageState extends State<FeedPage>
 
   Future<void> _logout() async {
     try {
-      await ApiService.deleteSession(widget.token);
+      await ApiService.deleteSession();
     } catch (_) {}
+    await AuthManager.instance.logout();
     if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginView()),
-      (route) => false,
-    );
+    if (AuthManager.instance.currentSession == null) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginView()),
+        (route) => false,
+      );
+    } else {
+      Navigator.pop(context); // fecha o Drawer
+      // ListenableBuilder cuida de recarregar a tela
+      _userLogin = _currentUserLogin;
+      _followingLoaded = false;
+      _loadUserData();
+      _loadPosts();
+    }
   }
 
   String _getInitial() {
@@ -380,106 +393,110 @@ class _FeedPageState extends State<FeedPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: Colors.white,
-      drawer: _buildProfileDrawer(),
-      appBar: AppBar(
-        leading: GestureDetector(
-          onTap: () => _scaffoldKey.currentState?.openDrawer(),
-          child: Padding(
-            padding: const EdgeInsets.all(10.0),
-            child: CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              child: Text(
-                _getInitial(),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-              ),
-            ),
-          ),
-        ),
-        title: Image.asset('assets/logo.png', height: 40),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: "Para você"),
-            Tab(text: "Seguindo"),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          RefreshIndicator(
-            onRefresh: _loadPosts,
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildTimeline(),
-          ),
-          RefreshIndicator(
-            onRefresh: _loadFollowingPosts,
-            child: _isLoadingFollowing
-                ? const Center(child: CircularProgressIndicator())
-                : _followingPosts.isEmpty
-                ? ListView(
-                    children: const [
-                      SizedBox(height: 120),
-                      Center(
-                        child: Icon(
-                          Icons.people_outline,
-                          size: 48,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      SizedBox(height: 12),
-                      Center(
-                        child: Text(
-                          "Siga pessoas para ver posts aqui",
-                          style: TextStyle(color: Colors.grey, fontSize: 16),
-                        ),
-                      ),
-                    ],
-                  )
-                : _buildFollowingTimeline(),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            label: "Início",
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: "Pesquisar"),
-        ],
-        onTap: (index) {
-          if (index == 1) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SearchView(
-                  token: widget.token,
-                  currentUserLogin: widget.userLogin,
+    return ListenableBuilder(
+      listenable: AuthManager.instance,
+      builder: (context, _) {
+        return Scaffold(
+          key: _scaffoldKey,
+          backgroundColor: Colors.white,
+          drawer: _buildProfileDrawer(),
+          appBar: AppBar(
+            leading: GestureDetector(
+              onTap: () => _scaffoldKey.currentState?.openDrawer(),
+              child: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: CircleAvatar(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  child: Text(
+                    _getInitial(),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
                 ),
               ),
-            );
-          }
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final refresh = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CreatePostPage(token: widget.token),
             ),
-          );
-          if (refresh == true) _loadPosts();
-        },
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+            title: Image.asset('assets/logo.png', height: 40),
+            bottom: TabBar(
+              controller: _tabController,
+              tabs: const [
+                Tab(text: "Para você"),
+                Tab(text: "Seguindo"),
+              ],
+            ),
+          ),
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              RefreshIndicator(
+                onRefresh: _loadPosts,
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _buildTimeline(),
+              ),
+              RefreshIndicator(
+                onRefresh: _loadFollowingPosts,
+                child: _isLoadingFollowing
+                    ? const Center(child: CircularProgressIndicator())
+                    : _followingPosts.isEmpty
+                    ? ListView(
+                        children: const [
+                          SizedBox(height: 120),
+                          Center(
+                            child: Icon(
+                              Icons.people_outline,
+                              size: 48,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          Center(
+                            child: Text(
+                              "Siga pessoas para ver posts aqui",
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : _buildFollowingTimeline(),
+              ),
+            ],
+          ),
+          bottomNavigationBar: BottomNavigationBar(
+            showSelectedLabels: false,
+            showUnselectedLabels: false,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_outlined),
+                label: "Início",
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.search),
+                label: "Pesquisar",
+              ),
+            ],
+            onTap: (index) {
+              if (index == 1) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SearchView()),
+                );
+              }
+            },
+          ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () async {
+              final refresh = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CreatePostPage()),
+              );
+              if (refresh == true) _loadPosts();
+            },
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+        );
+      },
     );
   }
 
@@ -500,8 +517,6 @@ class _FeedPageState extends State<FeedPage>
             PostWidget(
               key: ValueKey("post_${post.id}_${post.isLiked}"),
               postData: post,
-              token: widget.token,
-              currentUserLogin: widget.userLogin,
               onLikeChanged: (liked, likesCount) {
                 setState(() {
                   _posts[index].isLiked = liked;
@@ -533,8 +548,6 @@ class _FeedPageState extends State<FeedPage>
             PostWidget(
               key: ValueKey("following_${post.id}_${post.isLiked}"),
               postData: post,
-              token: widget.token,
-              currentUserLogin: widget.userLogin,
               onLikeChanged: (liked, likesCount) {
                 setState(() {
                   _followingPosts[index].isLiked = liked;
@@ -550,9 +563,72 @@ class _FeedPageState extends State<FeedPage>
   }
 
   Widget _buildProfileDrawer() {
+    final accounts = AuthManager.instance.savedAccounts;
+    final activeLogin = AuthManager.instance.currentSession?.login;
+
     return Drawer(
       child: ListView(
         children: [
+          const DrawerHeader(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF8DC63F), Color(0xFF0072BC)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  'Contas',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Lista de contas salvas
+          ...accounts.map((session) {
+            final isActive = session.login == activeLogin;
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: isActive
+                    ? const Color(0xFF0072BC)
+                    : Colors.grey.shade400,
+                child: Text(
+                  session.login[0].toUpperCase(),
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+              title: Text(
+                '@${session.login}',
+                style: TextStyle(
+                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              trailing: isActive
+                  ? const Icon(Icons.check_circle, color: Colors.green)
+                  : null,
+              onTap: isActive
+                  ? null
+                  : () async {
+                      await AuthManager.instance.switchAccount(session.login);
+                      if (!mounted) return;
+                      Navigator.pop(context); // fecha o drawer
+                      _userLogin = _currentUserLogin;
+                      _followingLoaded = false;
+                      _loadUserData();
+                      _loadPosts();
+                    },
+            );
+          }),
+          const Divider(),
+          // Perfil
           ListTile(
             leading: const Icon(Icons.person_outline),
             title: const Text("Perfil"),
@@ -561,16 +637,31 @@ class _FeedPageState extends State<FeedPage>
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => ProfileView(
-                    token: widget.token,
-                    userLogin: _userLogin,
-                    currentUserLogin: widget.userLogin,
-                    isCurrentUser: true,
-                  ),
+                  builder: (_) => ProfileView(userLogin: _userLogin),
                 ),
               );
             },
           ),
+          // Adicionar conta existente
+          ListTile(
+            leading: const Icon(
+              Icons.person_add_outlined,
+              color: Color(0xFF0072BC),
+            ),
+            title: const Text(
+              "Adicionar conta existente",
+              style: TextStyle(color: Color(0xFF0072BC)),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginView()),
+              );
+            },
+          ),
+          const Divider(),
+          // Logout
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text("Sair"),
@@ -584,17 +675,9 @@ class _FeedPageState extends State<FeedPage>
 
 class PostWidget extends StatefulWidget {
   final PostData postData;
-  final String token;
-  final String currentUserLogin;
   final Function(bool, int)? onLikeChanged;
 
-  const PostWidget({
-    super.key,
-    required this.postData,
-    required this.token,
-    required this.currentUserLogin,
-    this.onLikeChanged,
-  });
+  const PostWidget({super.key, required this.postData, this.onLikeChanged});
 
   @override
   State<PostWidget> createState() => _PostWidgetState();
@@ -627,12 +710,8 @@ class _PostWidgetState extends State<PostWidget> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ProfileView(
-          token: widget.token,
-          userLogin: widget.postData.userHandle,
-          currentUserLogin: widget.currentUserLogin,
-          isCurrentUser: widget.postData.userHandle == widget.currentUserLogin,
-        ),
+        builder: (context) =>
+            ProfileView(userLogin: widget.postData.userHandle),
       ),
     );
   }
@@ -641,8 +720,7 @@ class _PostWidgetState extends State<PostWidget> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            PostDetailsView(token: widget.token, post: widget.postData),
+        builder: (context) => PostDetailsView(post: widget.postData),
       ),
     );
   }
@@ -656,9 +734,9 @@ class _PostWidgetState extends State<PostWidget> {
     });
     try {
       if (localIsLiked) {
-        await ApiService.likePost(widget.token, widget.postData.id);
+        await ApiService.likePost(widget.postData.id);
       } else {
-        await ApiService.unlikePost(widget.token, widget.postData.id);
+        await ApiService.unlikePost(widget.postData.id);
       }
       widget.onLikeChanged?.call(localIsLiked, localLikes);
     } catch (e) {
@@ -729,7 +807,6 @@ class _PostWidgetState extends State<PostWidget> {
                             MaterialPageRoute(
                               builder: (context) => ReplyView(
                                 userHandle: widget.postData.userHandle,
-                                token: widget.token,
                                 postId: widget.postData.id,
                               ),
                             ),
